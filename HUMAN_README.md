@@ -268,16 +268,16 @@ Install context7 MCP on claude:
 claude mcp add --scope user context7 -- npx -y @upstash/context7-mcp --api-key YOUR_API_KEY
 ```
 
-### Install Skills manager
+### Install APM Skills manager
 
 ```bash
-curl -sSL https://aka.ms/apm-unix | sh
+pip install uv
 ```
 
 Install skills by APM skill manager
 
 ```bash
-apm install https://github.com/IldarMinaev/test-troubleshooting-skill
+uv tool run --python 3.12 --from apm-cli apm install https://github.com/IldarMinaev/test-troubleshooting-skill
 ```
 
 ## Use prompt

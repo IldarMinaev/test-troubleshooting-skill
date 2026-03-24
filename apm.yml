@@ -5,6 +5,12 @@ author: Qubership
 license: Apache-2.0
 type: skill
 
+dependencies:
+  apm: []
+  mcp: []
+scripts: {}
+
+
 # All skills share _common/ reference docs and _sql/ scripts.
 # Install the full package to ensure shared resources are deployed
 # alongside individual skills:
