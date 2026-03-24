@@ -1,0 +1,72 @@
+# YAML lint configuration for PostgreSQL Troubleshooting Repository
+
+extends: default
+
+rules:
+  # Default indentation is 2 spaces
+  indentation:
+    spaces: 2
+    indent-sequences: true
+  
+  # Allow document start without ---
+  document-start:
+    present: false
+  
+  # Allow document end without ...
+  document-end:
+    present: false
+  
+  # Line length
+  line-length:
+    max: 100
+    level: warning
+  
+  # Allow trailing spaces in multiline strings
+  trailing-spaces:
+    level: warning
+  
+  # Allow empty values
+  empty-values:
+    forbid-in-block-mappings: false
+  
+  # Comments
+  comments:
+    require-starting-space: true
+    min-spaces-from-content: 1
+  
+  # Key duplication
+  key-duplicates: enable
+  
+  # Braces in mapping
+  braces:
+    max-spaces-inside: 0
+    min-spaces-inside: 0
+  
+  # Brackets in sequences
+  brackets:
+    max-spaces-inside: 0
+    min-spaces-inside: 0
+  
+  # Quotes
+  quoted-strings:
+    required: false
+    extra-allowed: ['http://', 'https://', 'ftp://']
+  
+  # Hyphens in sequences
+  hyphens:
+    max-spaces-after: 1
+  
+  # Commas in flow mappings
+  commas:
+    max-spaces-after: 1
+    max-spaces-before: 0
+  
+  # Colons in mappings
+  colons:
+    max-spaces-before: 0
+    max-spaces-after: 1
+  
+  # Document separator
+  document-separator:
+    require-start: false
+    require-end: false

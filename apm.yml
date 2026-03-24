@@ -1,0 +1,25 @@
+name: qubership-postgresql-troubleshooting
+version: 1.0.0
+description: AI-agent skills for troubleshooting PostgreSQL managed by pgskipper-operator in Kubernetes
+author: Qubership
+license: Apache-2.0
+type: skill
+
+# All skills share _common/ reference docs and _sql/ scripts.
+# Install the full package to ensure shared resources are deployed
+# alongside individual skills:
+#
+#   apm install <org>/<repo>
+#
+# Individual skills can also be installed, but require co-installing
+# the shared resource packages:
+#
+#   apm install <org>/<repo>/skills/postgresql-health-check
+#   apm install <org>/<repo>/skills/_common
+#   apm install <org>/<repo>/skills/_sql
+
+compilation:
+  target: all
+  strategy: distributed
+  resolve_links: true
+  source_attribution: true

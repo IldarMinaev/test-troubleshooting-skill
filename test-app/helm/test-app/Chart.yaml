@@ -1,0 +1,6 @@
+apiVersion: v2
+name: my-business-app
+description: PostgreSQL load generator for troubleshooting skill testing
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

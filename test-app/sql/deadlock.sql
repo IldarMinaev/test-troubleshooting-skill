@@ -1,0 +1,17 @@
+-- Deadlock scenario (documentation only — executed programmatically via 2 threads)
+--
+-- Thread A:
+--   BEGIN;
+--   UPDATE load_test_accounts SET balance = balance - 10, updated_at = now() WHERE account_id = :id_a;
+--   -- barrier.wait() — synchronize with Thread B
+--   UPDATE load_test_accounts SET balance = balance + 10, updated_at = now() WHERE account_id = :id_b;
+--   COMMIT;
+--
+-- Thread B (opposite order):
+--   BEGIN;
+--   UPDATE load_test_accounts SET balance = balance - 10, updated_at = now() WHERE account_id = :id_b;
+--   -- barrier.wait() — synchronize with Thread A
+--   UPDATE load_test_accounts SET balance = balance + 10, updated_at = now() WHERE account_id = :id_a;
+--   COMMIT;
+--
+-- One transaction will be aborted with: ERROR: deadlock detected

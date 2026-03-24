@@ -1,0 +1,40 @@
+{
+  "plansDirectory": "./docs/plans",
+  "env": {
+    "ENABLE_TOOL_SEARCH": "auto:5"
+  },
+  "enableAllProjectMcpServers": true,
+  "alwaysThinkingEnabled": true,
+  "autoUpdatesChannel": "stable",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [{ "type": "command", "command": ". ~/.nvm/nvm.sh; nvm use 22" }]
+      }
+    ]
+  },
+  
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Bash(kubectl get *)",
+      "Bash(helm *)",
+      "Bash(curl *)",
+      "Bash(jq *)",
+      "Bash(PGPASSWORD=*)",
+      "Bash(MASTER_POD=*)",
+      "Bash(POOLER_POD=*)",
+      "Bash(EXPORTER_POD=*)",
+      "Bash(DBAAS_SECRET=*)",
+      "Bash(DBAAS_USER=*)",
+      "Bash(DBAAS_PASS=*)",
+      "Bash(sleep *)",
+      "Edit(./**)"
+    ],
+    "deny": [
+      "Read(.env*)",
+      "Bash(rm -rf:*)"
+    ]
+  }
+}

@@ -1,0 +1,115 @@
+image:
+  repository: my-business-app
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Application mode: "workload" or "trouble"
+mode: workload
+
+# DBAAS connection settings
+dbaas:
+  url: ""
+  user: ""
+  password: ""
+  # Reference an existing secret instead of inline credentials.
+  # Secret must have keys: DBAAS_URL, DBAAS_USER, DBAAS_PASSWORD
+  existingSecret: ""
+
+# ── Workload Mode Configuration ──────────────────────────────────
+# Used when mode=workload (original load generator)
+workers:
+  count: 4
+  insertRateMbPerHour: 100
+  workloadMix: "insert:40,select:30,update:15,lock_contention:5,temp_table_bloat:5,connection_bloat:5"
+  longQueryDurationSeconds: 300
+  deadlockIntervalSeconds: 600
+
+# ── Trouble Mode Configuration ───────────────────────────────────
+# Used when mode=trouble (issue generator for AI skill testing)
+trouble:
+  # Scenarios to enable (comma-separated list or array)
+  # Available: slow-queries, missing-indexes, lock-contention, vacuum-issues,
+  #            pool-exhaustion, idle-in-transaction, disk-fill, wal-accumulation
+  scenarios:
+    - slow-queries
+  # Or as comma-separated string:
+  # scenariosString: "slow-queries,pool-exhaustion"
+
+  # Intensity level: low, medium, high, extreme
+  intensity: medium
+
+  # Duration in seconds (0 = infinite)
+  duration: 0
+
+  # Ramp-up time in seconds (gradually enable scenarios)
+  rampUp: 0
+
+  # Clean up on exit (restore normal state)
+  cleanupOnExit: true
+
+  # Enable HTTP control API for runtime scenario management
+  controlApi:
+    enabled: false
+    port: 8080
+
+# ── Resource Configuration ────────────────────────────────────────
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# Override resources for trouble mode (may need more for compound scenarios)
+troubleResources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+# ── Kubernetes Configuration ──────────────────────────────────────
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# Service for control API (only created when trouble.controlApi.enabled=true)
+service:
+  type: ClusterIP
+  port: 8080
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# ── Preset Configurations ─────────────────────────────────────────
+# Use these presets for common scenarios:
+#
+# Performance Demo:
+#   mode: trouble
+#   trouble.scenarios: [slow-queries]
+#   trouble.intensity: high
+#   trouble.duration: 1800
+#
+# Connection Demo:
+#   mode: trouble
+#   trouble.scenarios: [pool-exhaustion]
+#   trouble.intensity: high
+#   trouble.duration: 1800
+#
+# Compound Issue Demo:
+#   mode: trouble
+#   trouble.scenarios: [slow-queries, pool-exhaustion, disk-fill]
+#   trouble.intensity: medium
+#   trouble.duration: 3600
+#   trouble.rampUp: 300
+#   troubleResources: (use larger limits)
+#
+# CI/CD Validation:
+#   mode: trouble
+#   trouble.scenarios: [slow-queries]
+#   trouble.intensity: low
+#   trouble.duration: 300
