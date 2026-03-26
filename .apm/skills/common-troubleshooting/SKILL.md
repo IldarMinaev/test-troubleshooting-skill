@@ -17,10 +17,10 @@ Use this skill when:
 
 ## Prerequisites
 
-- Access to the skills listed in [AGENTS.md](../../AGENTS.md)
+- Access to the skills listed in the project instructions
 - A user who can answer clarifying questions about the problem
 
-See [troubleshooting-decision-tree.md](../_common/troubleshooting-decision-tree.md) for quick symptom-to-skill lookup when the problem is already clear.
+See [troubleshooting-decision-tree](../_common/troubleshooting-decision-tree.md) for quick symptom-to-skill lookup when the problem is already clear.
 
 ## Step 1: Problem Intake
 
@@ -68,6 +68,8 @@ Map the confirmed problem to an investigation path and form the first hypothesis
 | Missing metrics / monitoring gaps | monitoring-check | postgresql-health-check |
 | DBAAS API errors / missing DBs | dbaas-check | dbaas-api-helper |
 | Unknown / vague symptoms | postgresql-health-check | pgskipper-check, postgresql-log-analyzer |
+
+> **Note**: PostgreSQL skills (`pgskipper-check`, `postgresql-*`, `monitoring-check`) are located in the [pgskipper-operator](https://github.com/Netcracker/pgskipper-operator) repository. DBAAS skills (`dbaas-check`, `dbaas-api-helper`) are located in the [qubership-dbaas](https://github.com/Netcracker/qubership-dbaas) repository.
 
 ### 2.2 Form the first hypothesis
 
@@ -207,7 +209,7 @@ Present the solution with:
 
 Execute the approved fix, using the appropriate skill(s) for any commands needed.
 
-> **Remediation policy — deploy-tool first, always**: For any fix that changes a configuration parameter of an operator-managed resource (PatroniCore, PatroniServices, or any resource owned by Helm), the fix **must** go through the deployment tool — `helm upgrade` for direct-Helm installs, or a Git value update + `argocd app sync` for ArgoCD-managed installs. Never use `kubectl patch`, `kubectl edit`, `kubectl scale`, or `kubectl delete` on operator-managed resources — these bypass deployment-tool state tracking, may be reverted on the next reconciliation or sync cycle, and lose rollback capability. See the Remediation Policy in [AGENTS.md](../../AGENTS.md).
+> **Remediation policy — deploy-tool first, always**: For any fix that changes a configuration parameter of an operator-managed resource (PatroniCore, PatroniServices, or any resource owned by Helm), the fix **must** go through the deployment tool — `helm upgrade` for direct-Helm installs, or a Git value update + `argocd app sync` for ArgoCD-managed installs. Never use `kubectl patch`, `kubectl edit`, `kubectl scale`, or `kubectl delete` on operator-managed resources — these bypass deployment-tool state tracking, may be reverted on the next reconciliation or sync cycle, and lose rollback capability. See the Remediation Policy in the project instructions.
 
 ### 6.3 Verify resolution
 

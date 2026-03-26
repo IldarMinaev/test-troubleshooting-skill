@@ -2,6 +2,8 @@
 
 > **Note**: This tree is a quick-reference for mapping symptoms to skills. For systematic investigation with hypothesis tracking, root cause analysis, and structured reporting, use [`common-troubleshooting`](../common-troubleshooting/SKILL.md) instead.
 
+> **Skill locations**: PostgreSQL skills (`pgskipper-check`, `postgresql-*`, `monitoring-check`) are in the [pgskipper-operator](https://github.com/Netcracker/pgskipper-operator) repository. DBAAS skills (`dbaas-check`, `dbaas-api-helper`) are in the [qubership-dbaas](https://github.com/Netcracker/qubership-dbaas) repository.
+
 Use this guide to select the right skill based on the symptom or request.
 
 ## "The application can't connect to the database"
