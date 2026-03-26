@@ -1,0 +1,35 @@
+# Values for CI/CD automated validation
+# Usage: helm install ci-validation ./helm/inventory-service -f values-ci.yaml
+
+image:
+  repository: inventory-service
+  tag: latest
+  pullPolicy: Always  # Always pull for CI
+
+mode: batch
+
+dbaas:
+  # Use existing secret in CI environment
+  existingSecret: "ci-dbaas-credentials"
+
+batch:
+  # Quick validation job
+  jobs:
+    - report-generation
+
+  processingLoad: low  # Low load for CI
+  duration: 300        # 5 minutes only
+  warmupPeriod: 0
+  gracefulShutdown: true
+
+  managementApi:
+    enabled: false  # No API needed for CI
+
+# Minimal resources for CI
+batchResources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi

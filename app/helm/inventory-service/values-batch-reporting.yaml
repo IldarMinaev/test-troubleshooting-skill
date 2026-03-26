@@ -1,0 +1,45 @@
+# Values for batch reporting deployment
+# Usage: helm install inventory-service ./helm/inventory-service -f values-batch-reporting.yaml
+
+image:
+  repository: inventory-service
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Enable batch mode
+mode: batch
+
+dbaas:
+  # Replace with your DBAAS configuration
+  url: "http://dbaas-aggregator:8080"
+  user: "dba_client"
+  password: "your-password-here"
+  # Or use existing secret:
+  # existingSecret: "dbaas-credentials"
+
+batch:
+  # Single job for report generation
+  jobs:
+    - report-generation
+
+  processingLoad: high
+  duration: 1800  # 30 minutes
+  warmupPeriod: 0
+  gracefulShutdown: true
+
+  managementApi:
+    enabled: true
+    port: 8080
+
+# Use higher resources for batch mode
+batchResources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+
+service:
+  type: ClusterIP
+  port: 8080

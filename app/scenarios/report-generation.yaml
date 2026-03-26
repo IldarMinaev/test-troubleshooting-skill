@@ -1,0 +1,113 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inventory-report-generation
+  labels:
+    app: inventory-service
+    scenario: report-generation
+data:
+  MODE: "batch"
+  BATCH_JOBS: "report-generation"
+  PROCESSING_LOAD: "high"
+  JOB_DURATION: "1800"           # 30 minutes
+  WARMUP_PERIOD: "0"
+  GRACEFUL_SHUTDOWN: "true"
+  MANAGEMENT_API_ENABLED: "true"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory-report-generation
+  labels:
+    app: inventory-service
+    scenario: report-generation
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: inventory-service
+      scenario: report-generation
+  template:
+    metadata:
+      labels:
+        app: inventory-service
+        scenario: report-generation
+    spec:
+      containers:
+      - name: batch-worker
+        image: inventory-service:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        # DBAAS connection (replace with your values or use envFrom with existing secret)
+        - name: DBAAS_URL
+          value: "http://dbaas-aggregator:8080"
+        - name: DBAAS_USER
+          value: "dba_client"
+        - name: DBAAS_PASSWORD
+          value: "your-password-here"
+        - name: APP_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        # Batch job configuration
+        - name: MODE
+          valueFrom:
+            configMapKeyRef:
+              name: inventory-report-generation
+              key: MODE
+        - name: BATCH_JOBS
+          valueFrom:
+            configMapKeyRef:
+              name: inventory-report-generation
+              key: BATCH_JOBS
+        - name: PROCESSING_LOAD
+          valueFrom:
+            configMapKeyRef:
+              name: inventory-report-generation
+              key: PROCESSING_LOAD
+        - name: JOB_DURATION
+          valueFrom:
+            configMapKeyRef:
+              name: inventory-report-generation
+              key: JOB_DURATION
+        - name: WARMUP_PERIOD
+          valueFrom:
+            configMapKeyRef:
+              name: inventory-report-generation
+              key: WARMUP_PERIOD
+        - name: GRACEFUL_SHUTDOWN
+          valueFrom:
+            configMapKeyRef:
+              name: inventory-report-generation
+              key: GRACEFUL_SHUTDOWN
+        - name: MANAGEMENT_API_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: inventory-report-generation
+              key: MANAGEMENT_API_ENABLED
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 512Mi
+        ports:
+        - containerPort: 8080
+          name: api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory-report-generation
+  labels:
+    app: inventory-service
+    scenario: report-generation
+spec:
+  selector:
+    app: inventory-service
+    scenario: report-generation
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: api

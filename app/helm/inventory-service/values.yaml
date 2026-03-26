@@ -1,0 +1,115 @@
+image:
+  repository: inventory-service
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Application mode: "workload" or "batch"
+mode: workload
+
+# DBAAS connection settings
+dbaas:
+  url: ""
+  user: ""
+  password: ""
+  # Reference an existing secret instead of inline credentials.
+  # Secret must have keys: DBAAS_URL, DBAAS_USER, DBAAS_PASSWORD
+  existingSecret: ""
+
+# ── Workload Mode Configuration ──────────────────────────────────
+# Used when mode=workload (standard OLTP operations)
+workers:
+  count: 4
+  insertRateMbPerHour: 100
+  workloadMix: "insert:40,select:30,update:15,lock_contention:5,temp_table_bloat:5,connection_bloat:5"
+  longQueryDurationSeconds: 300
+  deadlockIntervalSeconds: 600
+
+# ── Batch Mode Configuration ─────────────────────────────────────
+# Used when mode=batch (batch processing jobs)
+batch:
+  # Jobs to enable (comma-separated list or array)
+  # Available: report-generation, data-export, batch-reconciliation, data-archival,
+  #            parallel-import, approval-workflow, data-migration, replication-setup
+  jobs:
+    - report-generation
+  # Or as comma-separated string:
+  # jobsString: "report-generation,parallel-import"
+
+  # Processing load level: low, medium, high, extreme
+  processingLoad: medium
+
+  # Duration in seconds (0 = infinite)
+  duration: 0
+
+  # Warmup period in seconds (gradually enable jobs)
+  warmupPeriod: 0
+
+  # Graceful shutdown on exit
+  gracefulShutdown: true
+
+  # Enable HTTP management API for runtime job control
+  managementApi:
+    enabled: false
+    port: 8080
+
+# ── Resource Configuration ────────────────────────────────────────
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# Override resources for batch mode (may need more for concurrent jobs)
+batchResources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+# ── Kubernetes Configuration ──────────────────────────────────────
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# Service for management API (only created when batch.managementApi.enabled=true)
+service:
+  type: ClusterIP
+  port: 8080
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# ── Preset Configurations ─────────────────────────────────────────
+# Use these presets for common batch processing scenarios:
+#
+# Report Generation:
+#   mode: batch
+#   batch.jobs: [report-generation]
+#   batch.processingLoad: high
+#   batch.duration: 1800
+#
+# Parallel Import:
+#   mode: batch
+#   batch.jobs: [parallel-import]
+#   batch.processingLoad: high
+#   batch.duration: 1800
+#
+# Month-End Processing:
+#   mode: batch
+#   batch.jobs: [report-generation, parallel-import, data-migration]
+#   batch.processingLoad: medium
+#   batch.duration: 3600
+#   batch.warmupPeriod: 300
+#   batchResources: (use larger limits)
+#
+# CI Validation:
+#   mode: batch
+#   batch.jobs: [report-generation]
+#   batch.processingLoad: low
+#   batch.duration: 300

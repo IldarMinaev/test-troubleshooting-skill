@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "inventory-service.fullname" . }}
+  labels:
+    {{- include "inventory-service.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "inventory-service.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/restartedAt: {{ now | date "2006-01-02T15:04:05Z07:00" | quote }}
+      labels:
+        {{- include "inventory-service.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "inventory-service.serviceAccountName" . }}
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: {{ if eq .Values.mode "batch" }}batch-worker{{ else }}service-worker{{ end }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            # Common configuration
+            {{- if .Values.dbaas.existingSecret }}
+            - name: DBAAS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.dbaas.existingSecret }}
+                  key: DBAAS_URL
+            - name: DBAAS_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.dbaas.existingSecret }}
+                  key: DBAAS_USER
+            - name: DBAAS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.dbaas.existingSecret }}
+                  key: DBAAS_PASSWORD
+            {{- else }}
+            - name: DBAAS_URL
+              value: {{ .Values.dbaas.url | quote }}
+            - name: DBAAS_USER
+              value: {{ .Values.dbaas.user | quote }}
+            - name: DBAAS_PASSWORD
+              value: {{ .Values.dbaas.password | quote }}
+            {{- end }}
+            - name: APP_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            - name: MODE
+              value: {{ .Values.mode | quote }}
+
+            {{- if eq .Values.mode "workload" }}
+            # Workload mode configuration
+            - name: WORKER_COUNT
+              value: {{ .Values.workers.count | quote }}
+            - name: INSERT_RATE_MB_PER_HOUR
+              value: {{ .Values.workers.insertRateMbPerHour | quote }}
+            - name: WORKLOAD_MIX
+              value: {{ .Values.workers.workloadMix | quote }}
+            - name: LONG_QUERY_DURATION_SECONDS
+              value: {{ .Values.workers.longQueryDurationSeconds | quote }}
+            - name: DEADLOCK_INTERVAL_SECONDS
+              value: {{ .Values.workers.deadlockIntervalSeconds | quote }}
+            {{- else if eq .Values.mode "batch" }}
+            # Batch mode configuration
+            - name: BATCH_JOBS
+              value: {{ if .Values.batch.jobsString }}{{ .Values.batch.jobsString | quote }}{{ else }}{{ join "," .Values.batch.jobs | quote }}{{ end }}
+            - name: PROCESSING_LOAD
+              value: {{ .Values.batch.processingLoad | quote }}
+            - name: JOB_DURATION
+              value: {{ .Values.batch.duration | quote }}
+            - name: WARMUP_PERIOD
+              value: {{ .Values.batch.warmupPeriod | quote }}
+            - name: GRACEFUL_SHUTDOWN
+              value: {{ .Values.batch.gracefulShutdown | quote }}
+            - name: MANAGEMENT_API_ENABLED
+              value: {{ .Values.batch.managementApi.enabled | quote }}
+            {{- end }}
+          {{- if and (eq .Values.mode "batch") .Values.batch.managementApi.enabled }}
+          ports:
+            - containerPort: {{ .Values.batch.managementApi.port }}
+              name: api
+              protocol: TCP
+          {{- end }}
+          resources:
+            {{- if eq .Values.mode "batch" }}
+            {{- toYaml .Values.batchResources | nindent 12 }}
+            {{- else }}
+            {{- toYaml .Values.resources | nindent 12 }}
+            {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,17 @@
+{{- if and (eq .Values.mode "batch") .Values.batch.managementApi.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "inventory-service.fullname" . }}
+  labels:
+    {{- include "inventory-service.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: api
+      protocol: TCP
+      name: api
+  selector:
+    {{- include "inventory-service.selectorLabels" . | nindent 4 }}
+{{- end }}

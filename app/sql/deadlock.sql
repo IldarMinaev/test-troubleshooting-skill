@@ -1,0 +1,17 @@
+-- Concurrent balance transfer (documentation only — executed programmatically via 2 threads)
+--
+-- Thread A:
+--   BEGIN;
+--   UPDATE customer_accounts SET balance = balance - 10, updated_at = now() WHERE account_id = :id_a;
+--   -- barrier.wait() — synchronize with Thread B
+--   UPDATE customer_accounts SET balance = balance + 10, updated_at = now() WHERE account_id = :id_b;
+--   COMMIT;
+--
+-- Thread B (opposite order):
+--   BEGIN;
+--   UPDATE customer_accounts SET balance = balance - 10, updated_at = now() WHERE account_id = :id_b;
+--   -- barrier.wait() — synchronize with Thread A
+--   UPDATE customer_accounts SET balance = balance + 10, updated_at = now() WHERE account_id = :id_a;
+--   COMMIT;
+--
+-- One transaction will be aborted with: ERROR: deadlock detected

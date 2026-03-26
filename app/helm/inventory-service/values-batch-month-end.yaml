@@ -1,0 +1,43 @@
+# Values for month-end batch processing
+# Usage: helm install inventory-service ./helm/inventory-service -f values-batch-month-end.yaml
+
+image:
+  repository: inventory-service
+  tag: latest
+  pullPolicy: IfNotPresent
+
+mode: batch
+
+dbaas:
+  url: "http://dbaas-aggregator:8080"
+  user: "dba_client"
+  password: "your-password-here"
+
+batch:
+  # Multiple jobs for month-end processing
+  jobs:
+    - report-generation
+    - parallel-import
+    - data-migration
+
+  processingLoad: medium
+  duration: 3600  # 1 hour
+  warmupPeriod: 300  # 5 minute gradual start
+  gracefulShutdown: true
+
+  managementApi:
+    enabled: true
+    port: 8080
+
+# Higher resources for concurrent batch jobs
+batchResources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: 2000m
+    memory: 1Gi
+
+service:
+  type: ClusterIP
+  port: 8080
