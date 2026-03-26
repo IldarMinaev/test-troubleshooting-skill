@@ -93,7 +93,7 @@ Before running ANY command that uses credentials:
 - [ ] Will the password appear in command output? (If yes, STOP and fix)
 - [ ] Am I using chained commands (&&) or a single command?
 - [ ] Have I avoided separate `kubectl get secret` commands?
-- [ ] Am I following the patterns in [credential-handling.md](credential-handling.md)?
+- [ ] Am I following the inline retrieval patterns shown above?
 
 **If you answer "NO" to any of these, DO NOT PROCEED.**
 
@@ -177,7 +177,7 @@ Before executing any skill in this repository:
 
 If you're unsure whether a pattern is secure:
 1. Check this file first
-2. Review [credential-handling.md](credential-handling.md) for technical details
+2. Review the credential handling skill in the relevant product repo (pgskipper-operator or qubership-dbaas)
 3. Ask the user before executing if uncertain
 
 **When in doubt, DO NOT expose credentials.**
