@@ -4,9 +4,6 @@ The role of this file is to describe common mistakes and confusion points that a
 
 This repository contains a common troubleshooting methodology and shared reference documentation. Product-specific skills have been moved to their respective repositories:
 
-- **PostgreSQL/pgskipper-operator skills** → [pgskipper-operator](https://github.com/Netcracker/pgskipper-operator)
-- **DBAAS skills** → [qubership-dbaas](https://github.com/Netcracker/qubership-dbaas)
-
 ---
 
 ## How to Use Skills

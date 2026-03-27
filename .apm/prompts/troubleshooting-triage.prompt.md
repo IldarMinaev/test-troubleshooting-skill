@@ -1,10 +1,18 @@
-# Troubleshooting Decision Tree
+---
+description: Map a reported symptom to the correct troubleshooting skill sequence
+input:
+  symptom: Description of the problem or error being observed (e.g. "application can't connect to the database", "disk space running out")
+---
 
-> **Note**: This tree is a quick-reference for mapping symptoms to skills. For systematic investigation with hypothesis tracking, root cause analysis, and structured reporting, use [`common-troubleshooting`](../common-troubleshooting/SKILL.md) instead.
+Given the reported symptom: **${input:symptom}**
+
+Select the closest matching category below and run the listed skills in order — stop when the root cause is found. If the symptom spans multiple categories, start with the category that best describes the primary complaint, then follow up with secondary categories as needed.
+
+If the symptom does not clearly fit any category, treat it as **"Something is wrong but I don't know what"** and begin with the broad health checks listed there. Consider switching to the `common-troubleshooting` skill for a structured hypothesis-driven investigation.
 
 > **Skill locations**: PostgreSQL skills (`pgskipper-check`, `postgresql-*`, `monitoring-check`) are in the [pgskipper-operator](https://github.com/Netcracker/pgskipper-operator) repository. DBAAS skills (`dbaas-check`, `dbaas-api-helper`) are in the [qubership-dbaas](https://github.com/Netcracker/qubership-dbaas) repository.
 
-Use this guide to select the right skill based on the symptom or request.
+---
 
 ## "The application can't connect to the database"
 

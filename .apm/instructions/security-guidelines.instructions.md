@@ -1,8 +1,10 @@
-# Security Guidelines for PostgreSQL Skills
+---
+applyTo: "**"
+---
 
-## 🚨 CRITICAL: Read This Before Executing Any Skill
+# Security Guidelines for Skills
 
-**This file contains mandatory security requirements that MUST be followed when using any skill that accesses PostgreSQL, Kubernetes secrets, or credentials.**
+These rules apply to all skills that access any secret (like application credentials, PostgreSQL connection strings with creds, Kubernetes secrets, credentials, etc). They are non-negotiable and must be followed without exception.
 
 ---
 
@@ -27,14 +29,14 @@ kubectl exec -n postgres pg-master-0 -- env PGPASSWORD="$PGPASS" psql -U postgre
 ```
 ✅ Variable is set and used in one command chain
 
-**Pattern 3: Bash wrapper**
+**Pattern 3: Multiple commands in one exec session**
 ```bash
-kubectl exec -n <NAMESPACE> <POD> -- bash -c '
-  export PGPASSWORD=$(echo "<secret>" | base64 -d)
-  psql -U postgres -c "SELECT 1"
-'
+kubectl exec -n <NAMESPACE> <POD> \
+  -- env PGPASSWORD="$(kubectl get secret -n <NAMESPACE> postgres-credentials \
+       -o jsonpath='{.data.password}' | base64 -d)" \
+  bash -c 'psql -U postgres -c "SELECT 1"; psql -U postgres -c "SELECT 2"'
 ```
-✅ Password handling happens inside the pod
+✅ Single outer shell expansion; password never stored or printed
 
 ---
 
@@ -88,12 +90,10 @@ In production environments, this can lead to:
 
 Before running ANY command that uses credentials:
 
-- [ ] **Have I read this SECURITY.md file?**
 - [ ] Am I using inline password retrieval (subshell pattern)?
-- [ ] Will the password appear in command output? (If yes, STOP and fix)
+- [ ] Have I confirmed the password will NOT appear in command output?
 - [ ] Am I using chained commands (&&) or a single command?
 - [ ] Have I avoided separate `kubectl get secret` commands?
-- [ ] Am I following the inline retrieval patterns shown above?
 
 **If you answer "NO" to any of these, DO NOT PROCEED.**
 
@@ -131,26 +131,6 @@ kubectl exec -n postgres pg-master-0 -- env PGPASSWORD="MYrootPWD" psql -U postg
 
 ---
 
-## Enforcement
-
-### For LLMs (Claude Code)
-
-Before executing any skill in this repository:
-
-1. **MUST** read this `SECURITY.md` file first
-2. **MUST** verify command patterns don't expose credentials
-3. **MUST** use inline or chained credential retrieval
-4. **MUST** stop and report if a skill shows insecure patterns
-
-### For Skill Authors
-
-1. All skills MUST reference this file prominently
-2. Skills MUST NOT show separate credential retrieval steps
-3. Example commands MUST use inline patterns
-4. Skills MUST include a link to this file in the "Prerequisites" section
-
----
-
 ## Additional Security Rules
 
 1. **Read-only by default**: Use SELECT/SHOW queries only
@@ -171,19 +151,3 @@ Before executing any skill in this repository:
 | SQL from file | Same pattern, use `-f /dev/stdin < file.sql` |
 | Variable needed multiple times | Set with `&&` chain: `VAR=$(...) && use $VAR && use $VAR` |
 
----
-
-## Getting Help
-
-If you're unsure whether a pattern is secure:
-1. Check this file first
-2. Review the credential handling skill in the relevant product repo (pgskipper-operator or qubership-dbaas)
-3. Ask the user before executing if uncertain
-
-**When in doubt, DO NOT expose credentials.**
-
----
-
-## Updates
-
-This security policy may be updated as new patterns or vulnerabilities are discovered. Last updated: 2026-02-16

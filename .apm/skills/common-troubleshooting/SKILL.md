@@ -17,10 +17,12 @@ Use this skill when:
 
 ## Prerequisites
 
-- Access to the skills listed in the project instructions
-- A user who can answer clarifying questions about the problem
+Before starting any investigation:
 
-See [troubleshooting-decision-tree](../_common/troubleshooting-decision-tree.md) for quick symptom-to-skill lookup when the problem is already clear.
+1. Run the [`kubernetes-context`](../kubernetes-context/SKILL.md) skill to verify cluster access and resolve the target namespace.
+2. Ensure the user is available to answer clarifying questions throughout the session.
+
+See the [`troubleshooting-triage`](../../prompts/troubleshooting-triage.prompt.md) prompt for quick symptom-to-skill lookup when the problem is already clear.
 
 ## Step 1: Problem Intake
 
@@ -209,7 +211,7 @@ Present the solution with:
 
 Execute the approved fix, using the appropriate skill(s) for any commands needed.
 
-> **Remediation policy — deploy-tool first, always**: For any fix that changes a configuration parameter of an operator-managed resource (PatroniCore, PatroniServices, or any resource owned by Helm), the fix **must** go through the deployment tool — `helm upgrade` for direct-Helm installs, or a Git value update + `argocd app sync` for ArgoCD-managed installs. Never use `kubectl patch`, `kubectl edit`, `kubectl scale`, or `kubectl delete` on operator-managed resources — these bypass deployment-tool state tracking, may be reverted on the next reconciliation or sync cycle, and lose rollback capability. See the Remediation Policy in the project instructions.
+> **Remediation policy — deploy-tool first, always**: For any fix that changes a configuration parameter of an operator-managed resource (for example, PatroniCore, PatroniServices, or any resource owned by Helm), the fix **must** go through the deployment tool — `helm upgrade` for direct-Helm installs, or a Git value update + `argocd app sync` for ArgoCD-managed installs. Never use `kubectl patch`, `kubectl edit`, `kubectl scale`, or `kubectl delete` on operator-managed resources — these bypass deployment-tool state tracking, may be reverted on the next reconciliation or sync cycle, and lose rollback capability.
 
 ### 6.3 Verify resolution
 
@@ -239,7 +241,7 @@ Suggest improvements to prevent recurrence, categorized by type:
 
 Produce a structured RCA report:
 
-```
+```markdown
 ## Root Cause Analysis
 
 **Problem**: [Problem statement from Step 1]
