@@ -56,3 +56,4 @@ Example summary:
 - **Context not set**: Run `kubectl config use-context <context-name>`
 - **No permissions**: Contact cluster admin for RBAC grants
 - **Namespace not found**: Ask the user for the correct namespace
+- **kubectl fails in sandbox**: Ask the user to run the command locally and paste the output — do not attempt direct API connections as a workaround
