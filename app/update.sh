@@ -7,7 +7,7 @@ DBAAS_SERVICE_NAME=dbaas-aggregator
 APP_NAMESPACE=inventory
 DBA_PASSWORD=$(kubectl get secret -n ${DBAAS_NAMESPACE} dbaas-security-configuration-secret -o jsonpath='{.data.users\.json}' | base64 -d | jq -r '."cluster-dba".password')
 
-kubectl delete ns $APP_NAMESPACE || exit 1
+kubectl delete ns $APP_NAMESPACE
 
 helm upgrade inventory-service ./helm/inventory-service \
   --install \

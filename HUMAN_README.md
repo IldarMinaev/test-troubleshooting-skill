@@ -192,92 +192,51 @@ kubectl delete namespace postgres
 ```
 
 ## Install test app
-Test app
+
+Build it first:
 
 ```bash
-DBAAS_NAMESPACE=dbaas
-DBAAS_SERVICE_NAME=dbaas-aggregator
-APP_NAMESPACE=test-app
-DBA_PASSWORD=$(kubectl get secret -n ${DBAAS_NAMESPACE} dbaas-security-configuration-secret -o jsonpath='{.data.users\.json}' | base64 -d | jq -r '."cluster-dba".password')
+app/build.sh
+```
 
-helm upgrade pg-load-generator ./test-app/helm/test-app \
-  --install \
-  -n ${APP_NAMESPACE} \
-  --create-namespace \
-  --set="workers.count=4" \
-  --set="dbaas.url=http://${DBAAS_SERVICE_NAME}.${DBAAS_NAMESPACE}.svc.cluster.local:8080" \
-  --set="dbaas.user=cluster-dba" \
-  --set="dbaas.password=${DBA_PASSWORD}" \
-  --wait
+Run deploy script:
+
+```bash
+app/update.sh
 ```
 
 ## Run test scenarios
 
+View supported scenarios:
+
+```bash
+app/scenarios/manage-deployment.sh list
+```
+
+Run scenario:
 ```bash
 export DBAAS_NAMESPACE=dbaas
 export DBAAS_URL="http://dbaas-aggregator.${DBAAS_NAMESPACE}.svc.cluster.local:8080"
 export DBAAS_USER=cluster-dba
 export DBAAS_PASSWORD=$(kubectl get secret -n ${DBAAS_NAMESPACE} dbaas-security-configuration-secret -o jsonpath='{.data.users\.json}' | base64 -d | jq -r '."cluster-dba".password')
-test-app/scenarios/deploy-scenario.sh deploy compound-issue
+
+app/scenarios/manage-deployment.sh deploy month-end-processing
+app/scenarios/manage-deployment.sh deploy parallel-import
+app/scenarios/manage-deployment.sh deploy report-generation
+
 sleep 5
-test-app/scenarios/deploy-scenario.sh logs compound-issue
+app/scenarios/manage-deployment.sh logs report-generation
 ```
 
 ## Configure AI Agent
 
-### Get OpenAI compatible token
-
-See instructions: <https://openrouter.ai/settings/keys>.
-
-### Install AI agent
-
-Opencode:
+Get TroubleShooting Engineer workspace
 
 ```bash
-curl -fsSL https://opencode.ai/install | bash
-```
-
-### Install MCPs:
-
-On Opencode:
-
-```bash
-cd /tmp/ && curl -LO "$(curl -s https://api.github.com/repos/containers/kubernetes-mcp-server/releases/latest | jq -r '.assets[]|select(.name|test("kubernetes-mcp-server-linux-amd64$"))|.browser_download_url')" && chmod +x ./kubernetes-mcp-server-linux-amd64 && mv ./kubernetes-mcp-server-linux-amd64 ~/.local/bin/kubernetes-mcp-server
-```
-
-Add to the file `opencode.json` (correct user name. use full path to kubeconfig.):
-
-```json
-{
-  "mcp": {
-    "kubernetes": {
-      "type": "local",
-      "enabled": true,
-      "command": ["kubernetes-mcp-server", "--cluster-provider", "kubeconfig", "--kubeconfig", "/home/user/.kube/config"],
-      "environment": {
-        "KUBECONFIG": "/home/user/.kube/config"
-      }
-    }
-  }
-}
-```
-
-Install context7 MCP on claude:
-
-```shell
-claude mcp add --scope user context7 -- npx -y @upstash/context7-mcp --api-key YOUR_API_KEY
-```
-
-### Install APM Skills manager
-
-```bash
-pip install uv
-```
-
-Install skills by APM skill manager
-
-```bash
-uv tool run --python 3.12 --from apm-cli apm install https://github.com/IldarMinaev/test-troubleshooting-skill
+cd /tmp
+git clone https://github.com/IldarMinaev/engineer-workspace
+cd engineer-workspace
+./install.sh --agent=claude
 ```
 
 ## Use prompt
