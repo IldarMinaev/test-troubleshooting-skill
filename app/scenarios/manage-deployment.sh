@@ -4,7 +4,20 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-NAMESPACE="${NAMESPACE:-default}"
+NAMESPACE="${NAMESPACE:-${APP_NAMESPACE:-inventory}}"
+
+escape_sed_replacement() {
+    printf '%s' "$1" | sed -e 's/[&|\\]/\\&/g'
+}
+
+replace_in_file() {
+    local pattern=$1
+    local replacement=$2
+    local file=$3
+
+    sed -i.bak -e "s|${pattern}|$(escape_sed_replacement "$replacement")|g" "$file"
+    rm -f "${file}.bak"
+}
 
 usage() {
     cat <<EOF
@@ -26,7 +39,8 @@ Available scenarios:
   month-end-processing   Combined month-end jobs (medium load, 1 hour)
 
 Environment variables:
-  NAMESPACE              Kubernetes namespace (default: default)
+  NAMESPACE              Kubernetes namespace (default: inventory)
+  APP_NAMESPACE          Fallback namespace alias if NAMESPACE is unset
   DBAAS_URL             DBAAS aggregator URL
   DBAAS_USER            DBAAS username
   DBAAS_PASSWORD        DBAAS password
@@ -76,13 +90,13 @@ deploy_scenario() {
     cp "$yaml_file" "$temp_yaml"
 
     if [ -n "$DBAAS_URL" ]; then
-        sed -i "s|http://dbaas-aggregator:8080|${DBAAS_URL}|g" "$temp_yaml"
+        replace_in_file "http://dbaas-aggregator:8080" "$DBAAS_URL" "$temp_yaml"
     fi
     if [ -n "$DBAAS_USER" ]; then
-        sed -i "s|dba_client|${DBAAS_USER}|g" "$temp_yaml"
+        replace_in_file "dba_client" "$DBAAS_USER" "$temp_yaml"
     fi
     if [ -n "$DBAAS_PASSWORD" ]; then
-        sed -i "s|your-password-here|${DBAAS_PASSWORD}|g" "$temp_yaml"
+        replace_in_file "your-password-here" "$DBAAS_PASSWORD" "$temp_yaml"
     fi
 
     kubectl apply -f "$temp_yaml" -n "$NAMESPACE"
