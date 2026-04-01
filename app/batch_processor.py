@@ -165,7 +165,7 @@ class DataExportJob(BatchJob):
 
 
 class BatchReconciliationJob(BatchJob):
-    """Row-level lock contention."""
+    """Batch reconciliation with row-level locking."""
 
     def __init__(self):
         super().__init__(
@@ -182,7 +182,7 @@ class BatchReconciliationJob(BatchJob):
             LoadLevel.EXTREME: {"workers": 16, "hold_time_sec": 120, "frequency_sec": 2}
         }[intensity]
 
-        sql = db.load_sql("lock_contention")
+        sql = db.load_sql("inventory_audit")
 
         def worker():
             while not shutdown_event.is_set():
@@ -197,7 +197,7 @@ class BatchReconciliationJob(BatchJob):
                             conn.commit()
                         except Exception as e:
                             conn.rollback()
-                            log.debug("Lock contention: %s", e)
+                            log.debug("Reconciliation row locked: %s", e)
                 except Exception:
                     pass
                 finally:
@@ -215,7 +215,7 @@ class BatchReconciliationJob(BatchJob):
 
 
 class DataArchivalJob(BatchJob):
-    """Prevent autovacuum to create bloat."""
+    """Data archival with high update throughput."""
 
     def __init__(self):
         super().__init__(
@@ -225,7 +225,7 @@ class DataArchivalJob(BatchJob):
         )
 
     def _run(self, intensity: LoadLevel, shutdown_event: threading.Event):
-        # Start a long-running transaction to prevent autovacuum
+        # Start a long-running transaction to hold a consistent snapshot
         # Then do lots of updates
         config = {
             LoadLevel.LOW: {"update_rate_sec": 10, "batch_size": 100},
@@ -234,12 +234,12 @@ class DataArchivalJob(BatchJob):
             LoadLevel.EXTREME: {"update_rate_sec": 1, "batch_size": 2000}
         }[intensity]
 
-        # Hold a connection in transaction to block vacuum
+        # Hold a connection in transaction for archival snapshot
         blocker_conn = db.get_conn()
         blocker_conn.autocommit = False
         with blocker_conn.cursor() as cur:
             cur.execute("SELECT 1")  # Start transaction
-            log.info("Transaction started to block autovacuum")
+            log.info("Archival snapshot transaction started")
 
         try:
             # Generate updates that create dead tuples
@@ -254,7 +254,7 @@ class DataArchivalJob(BatchJob):
                                 break
                             cur.execute(update_sql)
                     conn.commit()
-                    log.debug("Updated %d rows, creating dead tuples", config["batch_size"])
+                    log.debug("Archived %d rows", config["batch_size"])
                 except Exception as e:
                     conn.rollback()
                     log.debug("Update error: %s", e)
@@ -265,13 +265,13 @@ class DataArchivalJob(BatchJob):
         finally:
             blocker_conn.rollback()
             db.put_conn(blocker_conn)
-            log.info("Released vacuum blocker transaction")
+            log.info("Released archival snapshot transaction")
 
 
 # ── Connection Jobs ─────────────────────────────────────────────────────
 
 class ParallelImportJob(BatchJob):
-    """Exhaust PgBouncer connection pool."""
+    """Parallel data import with high connection usage."""
 
     def __init__(self):
         super().__init__(
@@ -307,7 +307,7 @@ class ParallelImportJob(BatchJob):
             estimated_pool_size = 20  # Default fallback
 
         target_connections = int(estimated_pool_size * config["fill_percent"] / 100)
-        log.info("Pool exhaustion: targeting %d connections (estimated pool: %d)",
+        log.info("Allocating worker connections: %d (estimated pool: %d)",
                  target_connections, estimated_pool_size)
 
         # Acquire connections and hold them
@@ -325,8 +325,8 @@ class ParallelImportJob(BatchJob):
                 log.warning("Failed to acquire connection %d: %s", i+1, e)
                 break
 
-        log.info("Holding %d connections for %ds",
-                 len(self.held_connections), config["hold_time_sec"])
+        log.info("Workers allocated, processing batch (estimated %ds)",
+                 config["hold_time_sec"])
         shutdown_event.wait(timeout=config["hold_time_sec"])
 
     def cleanup(self):
@@ -342,7 +342,7 @@ class ParallelImportJob(BatchJob):
 
 
 class ApprovalWorkflowJob(BatchJob):
-    """Connections stuck idle-in-transaction."""
+    """Approval workflow with held transactions."""
 
     def __init__(self):
         super().__init__(
@@ -359,7 +359,7 @@ class ApprovalWorkflowJob(BatchJob):
             LoadLevel.EXTREME: {"connections": 20, "hold_time_sec": 1200}
         }[intensity]
 
-        sql = db.load_sql("connection_bloat")
+        sql = db.load_sql("approval_hold")
 
         def worker(worker_id):
             while not shutdown_event.is_set():
@@ -368,7 +368,7 @@ class ApprovalWorkflowJob(BatchJob):
                     conn.autocommit = False
                     with conn.cursor() as cur:
                         cur.execute(sql)
-                    log.debug("Worker %d: idle-in-transaction for %ds",
+                    log.debug("Worker %d: awaiting approval (%ds timeout)",
                              worker_id, config["hold_time_sec"])
                     shutdown_event.wait(timeout=config["hold_time_sec"])
                     conn.rollback()
@@ -392,7 +392,7 @@ class ApprovalWorkflowJob(BatchJob):
 # ── Storage Jobs ────────────────────────────────────────────────────────
 
 class DataMigrationJob(BatchJob):
-    """Fill disk with large data inserts."""
+    """Data migration with bulk inserts."""
 
     def __init__(self):
         super().__init__(

@@ -31,13 +31,13 @@ def main():
     log.info("Starting inventory-service")
     config = Config()
     log.info(
-        "Config: workers=%d insert_rate=%.0f MB/h deadlock_interval=%ds long_query=%ds",
+        "Config: workers=%d insert_rate=%.0f MB/h reconciliation_interval=%ds report_timeout=%ds",
         config.worker_count,
         config.insert_rate_mb_per_hour,
-        config.deadlock_interval_seconds,
-        config.long_query_duration_seconds,
+        config.reconciliation_interval_seconds,
+        config.report_timeout_seconds,
     )
-    log.info("Workload mix: %s", config.workload_mix)
+    log.info("Task distribution: %s", config.task_distribution)
 
     # 2. Provision database via DBAAS
     dbaas = DbaasClient(config.dbaas_url, config.dbaas_user, config.dbaas_password)
@@ -48,7 +48,7 @@ def main():
         sys.exit(1)
 
     # 3. Create connection pool
-    pool_size = config.worker_count + 5  # workers + deadlock(2) + long-query + overhead
+    pool_size = config.worker_count + 5  # workers + reconciliation(2) + analytics + overhead
     db.init_pool(db_params, pool_size)
 
     # 4. Initialize schema

@@ -14,4 +14,4 @@
 --   UPDATE customer_accounts SET balance = balance + 10, updated_at = now() WHERE account_id = :id_a;
 --   COMMIT;
 --
--- One transaction will be aborted with: ERROR: deadlock detected
+-- One transaction may be aborted by the database if a lock ordering conflict is detected.

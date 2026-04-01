@@ -52,9 +52,9 @@ def get_stats():
 
 # ── Weighted random selection ──────────────────────────────────────────
 
-def _pick_workload(workload_mix):
-    names = list(workload_mix.keys())
-    weights = [workload_mix[n] for n in names]
+def _pick_task(task_distribution):
+    names = list(task_distribution.keys())
+    weights = [task_distribution[n] for n in names]
     return random.choices(names, weights=weights, k=1)[0]
 
 
@@ -121,8 +121,8 @@ def _run_update(shutdown_event):
         db.put_conn(conn)
 
 
-def _run_lock_contention(shutdown_event):
-    """Hold row locks for a short period."""
+def _run_inventory_audit(shutdown_event):
+    """Hold row locks while verifying inventory counts."""
     conn = db.get_conn()
     try:
         conn.autocommit = False
@@ -132,40 +132,40 @@ def _run_lock_contention(shutdown_event):
                 "WHERE id IN (SELECT id FROM inventory_items ORDER BY random() LIMIT 5) "
                 "FOR UPDATE NOWAIT"
             )
-            _stats.record("lock_contention")
-            # Hold locks for 5-15 seconds
+            _stats.record("inventory_audit")
+            # Hold locks for 5-15 seconds while audit completes
             shutdown_event.wait(timeout=random.uniform(5, 15))
         conn.rollback()
     except psycopg2.errors.LockNotAvailable:
         conn.rollback()
-        log.debug("Lock not available (expected under contention)")
-        _stats.record("lock_contention", error=True)
+        log.debug("Row already locked by another audit, skipping")
+        _stats.record("inventory_audit", error=True)
     finally:
         db.put_conn(conn)
 
 
-def _run_temp_table_bloat(shutdown_event):
-    """Create large temp table for analytics staging."""
-    sql = _get_sql("temp_table_bloat")
+def _run_bulk_reconciliation(shutdown_event):
+    """Stage inventory snapshot into temp table for reconciliation."""
+    sql = _get_sql("bulk_reconciliation")
     conn = db.get_conn()
     try:
         conn.autocommit = True
         with conn.cursor() as cur:
             cur.execute(sql)
-        _stats.record("temp_table_bloat")
+        _stats.record("bulk_reconciliation")
     finally:
         db.put_conn(conn)
 
 
-def _run_connection_bloat(shutdown_event):
-    """Hold a connection idle-in-transaction."""
+def _run_approval_hold(shutdown_event):
+    """Hold a connection while awaiting approval sign-off."""
     conn = db.get_conn()
     try:
         conn.autocommit = False
         with conn.cursor() as cur:
             cur.execute("SELECT 1")
-        _stats.record("connection_bloat")
-        # Hold idle-in-transaction for 30-120 seconds
+        _stats.record("approval_hold")
+        # Hold connection while waiting for approval (30-120 seconds)
         shutdown_event.wait(timeout=random.uniform(30, 120))
         conn.rollback()
     finally:
@@ -176,44 +176,44 @@ def _run_connection_bloat(shutdown_event):
 
 def _worker_loop(worker_id, config, shutdown_event):
     """Main loop for a regular worker thread."""
-    insert_total = sum(config.workload_mix.values())
-    insert_weight = config.workload_mix.get("insert", 0)
+    insert_total = sum(config.task_distribution.values())
+    insert_weight = config.task_distribution.get("insert", 0)
     insert_ratio = (insert_weight / insert_total * config.worker_count) if insert_total > 0 else 0
     insert_sleep = _calc_insert_sleep(config.insert_rate_mb_per_hour, insert_ratio)
 
     log.info("Worker %d started (insert_sleep=%.1fs)", worker_id, insert_sleep)
 
     while not shutdown_event.is_set():
-        workload = _pick_workload(config.workload_mix)
+        task = _pick_task(config.task_distribution)
         try:
-            if workload == "insert":
+            if task == "insert":
                 _run_insert(shutdown_event, insert_sleep)
-            elif workload == "select":
+            elif task == "select":
                 _run_select(shutdown_event)
-            elif workload == "update":
+            elif task == "update":
                 _run_update(shutdown_event)
-            elif workload == "lock_contention":
-                _run_lock_contention(shutdown_event)
-            elif workload == "temp_table_bloat":
-                _run_temp_table_bloat(shutdown_event)
-            elif workload == "connection_bloat":
-                _run_connection_bloat(shutdown_event)
+            elif task == "inventory_audit":
+                _run_inventory_audit(shutdown_event)
+            elif task == "bulk_reconciliation":
+                _run_bulk_reconciliation(shutdown_event)
+            elif task == "approval_hold":
+                _run_approval_hold(shutdown_event)
             else:
-                log.warning("Unknown workload '%s', skipping", workload)
+                log.warning("Unknown task '%s', skipping", task)
                 shutdown_event.wait(timeout=1)
         except psycopg2.errors.DeadlockDetected:
-            log.info("Worker %d: deadlock detected, retrying", worker_id)
-            _stats.record(workload, error=True)
+            log.info("Worker %d: transfer conflict, retrying", worker_id)
+            _stats.record(task, error=True)
         except psycopg2.errors.QueryCanceled:
             log.debug("Worker %d: query canceled", worker_id)
-            _stats.record(workload, error=True)
+            _stats.record(task, error=True)
         except psycopg2.OperationalError as exc:
             log.warning("Worker %d: connection error: %s", worker_id, exc)
-            _stats.record(workload, error=True)
+            _stats.record(task, error=True)
             shutdown_event.wait(timeout=5)
         except Exception:
-            log.exception("Worker %d: unexpected error in workload '%s'", worker_id, workload)
-            _stats.record(workload, error=True)
+            log.exception("Worker %d: unexpected error in task '%s'", worker_id, task)
+            _stats.record(task, error=True)
             shutdown_event.wait(timeout=1)
 
     log.info("Worker %d stopped", worker_id)
@@ -221,7 +221,7 @@ def _worker_loop(worker_id, config, shutdown_event):
 
 # ── Reconciliation worker ─────────────────────────────────────────────
 
-def _deadlock_thread(conn, account_a, account_b, barrier, shutdown_event):
+def _concurrent_transfer_thread(conn, account_a, account_b, barrier, shutdown_event):
     """One side of a concurrent balance transfer: lock account_a, then try account_b."""
     try:
         conn.autocommit = False
@@ -242,24 +242,24 @@ def _deadlock_thread(conn, account_a, account_b, barrier, shutdown_event):
             )
         conn.commit()
     except psycopg2.errors.DeadlockDetected:
-        log.info("Deadlock detected, retrying")
+        log.info("Transfer conflict, retrying")
         conn.rollback()
-        _stats.record("deadlock", error=True)
+        _stats.record("concurrent_transfer", error=True)
     except Exception:
         log.debug("Reconciliation thread error", exc_info=True)
         try:
             conn.rollback()
         except Exception:
             pass
-        _stats.record("deadlock", error=True)
+        _stats.record("concurrent_transfer", error=True)
 
 
 def _reconciliation_loop(config, shutdown_event):
     """Periodically run concurrent balance transfers between accounts."""
-    log.info("Reconciliation worker started (interval=%ds)", config.deadlock_interval_seconds)
+    log.info("Reconciliation worker started (interval=%ds)", config.reconciliation_interval_seconds)
 
     while not shutdown_event.is_set():
-        shutdown_event.wait(timeout=config.deadlock_interval_seconds)
+        shutdown_event.wait(timeout=config.reconciliation_interval_seconds)
         if shutdown_event.is_set():
             break
 
@@ -272,12 +272,12 @@ def _reconciliation_loop(config, shutdown_event):
         conn_b = db.get_conn()
 
         t_a = threading.Thread(
-            target=_deadlock_thread,
+            target=_concurrent_transfer_thread,
             args=(conn_a, id_a, id_b, barrier, shutdown_event),
             daemon=True,
         )
         t_b = threading.Thread(
-            target=_deadlock_thread,
+            target=_concurrent_transfer_thread,
             args=(conn_b, id_b, id_a, barrier, shutdown_event),
             daemon=True,
         )
@@ -288,20 +288,20 @@ def _reconciliation_loop(config, shutdown_event):
 
         db.put_conn(conn_a)
         db.put_conn(conn_b)
-        _stats.record("deadlock")
+        _stats.record("concurrent_transfer")
 
     log.info("Reconciliation worker stopped")
 
 
 # ── Analytics query ──────────────────────────────────────────────────
 
-def _long_query_loop(config, shutdown_event):
+def _analytics_report_loop(config, shutdown_event):
     """Run analytical queries with statement_timeout."""
     log.info(
-        "Analytics query thread started (duration=%ds)",
-        config.long_query_duration_seconds,
+        "Analytics report thread started (timeout=%ds)",
+        config.report_timeout_seconds,
     )
-    timeout_ms = config.long_query_duration_seconds * 1000
+    timeout_ms = config.report_timeout_seconds * 1000
 
     while not shutdown_event.is_set():
         conn = db.get_conn()
@@ -320,23 +320,23 @@ def _long_query_loop(config, shutdown_event):
                     try:
                         cur.execute(sql)
                     except psycopg2.errors.QueryCanceled:
-                        log.debug("Analytics query canceled by statement_timeout (expected)")
+                        log.debug("Analytics report timed out (expected for large datasets)")
                 else:
                     log.info("Table too small (%d rows), using pg_sleep fallback", row_count)
                     try:
-                        cur.execute(f"SELECT pg_sleep({config.long_query_duration_seconds})")
+                        cur.execute(f"SELECT pg_sleep({config.report_timeout_seconds})")
                     except psycopg2.errors.QueryCanceled:
-                        log.debug("pg_sleep canceled by statement_timeout (expected)")
+                        log.debug("Report generation timed out (expected)")
 
                 cur.execute("RESET statement_timeout")
-            _stats.record("long_query")
+            _stats.record("analytics_report")
         except psycopg2.OperationalError as exc:
-            log.warning("Analytics query thread: connection error: %s", exc)
-            _stats.record("long_query", error=True)
+            log.warning("Analytics report thread: connection error: %s", exc)
+            _stats.record("analytics_report", error=True)
             shutdown_event.wait(timeout=5)
         except Exception:
-            log.exception("Analytics query thread: unexpected error")
-            _stats.record("long_query", error=True)
+            log.exception("Analytics report thread: unexpected error")
+            _stats.record("analytics_report", error=True)
             shutdown_event.wait(timeout=1)
         finally:
             db.put_conn(conn)
@@ -344,7 +344,7 @@ def _long_query_loop(config, shutdown_event):
         # Brief pause between queries
         shutdown_event.wait(timeout=5)
 
-    log.info("Analytics query thread stopped")
+    log.info("Analytics report thread stopped")
 
 
 # ── Stats reporter ────────────────────────────────────────────────────
@@ -386,9 +386,9 @@ def start_all(config, shutdown_event):
     t.start()
     threads.append(t)
 
-    # Analytics query
+    # Analytics report
     t = threading.Thread(
-        target=_long_query_loop,
+        target=_analytics_report_loop,
         args=(config, shutdown_event),
         name="analytics",
         daemon=True,

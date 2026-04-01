@@ -57,7 +57,7 @@ Imports inventory data in parallel across multiple categories:
 - Conflict resolution (ON CONFLICT DO UPDATE)
 - Connection pool utilization near capacity
 
-Typical database impact: high I/O, high connection utilization, lock contention.
+Typical database impact: high I/O, high connection utilization, row-level locking.
 
 ### 3. Data Management Jobs
 
@@ -65,7 +65,7 @@ Typical database impact: high I/O, high connection utilization, lock contention.
 
 Long-running data management operations:
 - `data-migration`: Schema version upgrades, column transformations
-- `data-archival`: Moving aged records to archive tables, table bloat management
+- `data-archival`: Moving aged records to archive tables, storage reclamation
 - `data-export`: Snapshot exports to staging tables for downstream consumers
 - `batch-reconciliation`: Count verification across warehouses, discrepancy resolution
 

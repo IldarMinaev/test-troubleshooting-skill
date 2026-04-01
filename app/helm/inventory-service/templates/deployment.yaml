@@ -59,12 +59,12 @@ spec:
               value: {{ .Values.workers.count | quote }}
             - name: INSERT_RATE_MB_PER_HOUR
               value: {{ .Values.workers.insertRateMbPerHour | quote }}
-            - name: WORKLOAD_MIX
-              value: {{ .Values.workers.workloadMix | quote }}
-            - name: LONG_QUERY_DURATION_SECONDS
-              value: {{ .Values.workers.longQueryDurationSeconds | quote }}
-            - name: DEADLOCK_INTERVAL_SECONDS
-              value: {{ .Values.workers.deadlockIntervalSeconds | quote }}
+            - name: TASK_DISTRIBUTION
+              value: {{ .Values.workers.taskDistribution | quote }}
+            - name: REPORT_TIMEOUT_SECONDS
+              value: {{ .Values.workers.reportTimeoutSeconds | quote }}
+            - name: RECONCILIATION_INTERVAL_SECONDS
+              value: {{ .Values.workers.reconciliationIntervalSeconds | quote }}
             {{- else if eq .Values.mode "batch" }}
             # Batch mode configuration
             - name: BATCH_JOBS
