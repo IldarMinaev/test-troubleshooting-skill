@@ -100,7 +100,8 @@ helm upgrade patroni-services ./operator/charts/patroni-services \
   --create-namespace \
   --set="postgresPassword=${POSTGRES_PASSWORD}"         `# Database superuser password` \
   --set='metricCollector.install=true'                  `# Install and run metrics collector` \
-  --set='backupDaemon.install=false'                    `# Install and run backup Daemon` \
+  --set='patroni.replicas=2'                            `# Configure number of replicas` \
+  --set='backupDaemon.install=false'                    `# Do not install and run backup Daemon, it not working` \
   --set='tests.install=true'                            `# Install and run tests` \
   --set='tests.runTestScenarios=basic'                  `# Configure tests scenarios` \
   --set='backupDaemon.storage.storageClass=local-path'  `# Default in Rancher Desktop` \

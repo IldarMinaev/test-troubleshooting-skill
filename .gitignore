@@ -2,6 +2,7 @@
 build/
 .vscode/
 
+TASKS.md
 
 # APM dependencies
 apm_modules/
