@@ -1,5 +1,89 @@
 # Prepare lab
 
+## Quick start (helmfile)
+
+All infrastructure (pgskipper-operator, dbaas-aggregator, inventory-service) is deployed
+with a single script that wraps helmfile.
+
+### Prerequisites
+
+- `git`, `helm`, `helmfile`, `kubectl`, `jq` on your PATH
+- A running Kubernetes cluster (Rancher Desktop, kind, etc.)
+
+### Deploy the lab
+
+```bash
+# Standard deploy — pulls official images from ghcr.io/netcracker
+./create_lab.sh
+
+# Show what would change without applying
+./create_lab.sh diff
+
+# Show current release status
+./create_lab.sh status
+
+# Tear down all releases and namespaces (interactive confirmation)
+./create_lab.sh destroy
+```
+
+### Deploy with locally built images
+
+Use this when you have modified pgskipper-operator or qubership-dbaas source code
+and want to test against your local build.
+
+**Step 1 — Build and push to local registry** (requires a local registry, e.g. kind: `localhost:5001`)
+
+```bash
+# Build both
+./build-dependencies.sh
+
+# Build only pgskipper-operator
+./build-dependencies.sh --pgskipper
+
+# Build only qubership-dbaas
+./build-dependencies.sh --dbaas
+
+# Specify a custom registry or tag
+./build-dependencies.sh --registry localhost:5001 --tag my-feature
+```
+
+**Step 2 — Deploy with local images**
+
+```bash
+# Use locally built pgskipper-operator images
+./create_lab.sh apply --local-pgskipper
+
+# Use locally built dbaas images
+./create_lab.sh apply --local-dbaas
+
+# Use both locally built
+./create_lab.sh apply --local
+
+# Use a custom registry / tag (must match what was used in build-dependencies.sh)
+./create_lab.sh apply --local --registry localhost:5001 --local-tag my-feature
+```
+
+### Install test app
+
+Build it first:
+
+```bash
+app/build.sh
+```
+
+Then deploy / update:
+
+```bash
+app/update.sh
+```
+
+---
+
+## Manual step-by-step approach
+
+The sections below describe the manual helm commands that `create_lab.sh` automates.
+They are kept here as a reference.
+
 ## PostgresSQL with PGSkipper Operator
 
 ```bash

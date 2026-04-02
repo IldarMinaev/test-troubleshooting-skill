@@ -1,0 +1,207 @@
+---
+# Lab helmfile: deploys pgskipper (patroni-core + patroni-services) + dbaas-aggregator + inventory-service
+#
+# Required environment variables (set by create_lab.sh):
+#   PGSKIPPER_IMAGE_TAG   - pgskipper-operator git tag / image tag (e.g. v1.2.3)
+#   DBAAS_IMAGE_TAG       - qubership-dbaas git tag / image tag (e.g. v1.2.3)
+#   STORAGE_CLASS         - Kubernetes storage class name
+#
+# Optional environment variables (have defaults):
+#   PGSKIPPER_DIR         - path to cloned pgskipper-operator repo (default: /tmp/pgskipper-operator)
+#   DBAAS_DIR             - path to cloned qubership-dbaas repo (default: /tmp/qubership-dbaas)
+#   IMAGE_PREFIX          - container image registry prefix (default: ghcr.io/netcracker/)
+#   PG_VERSION            - PostgreSQL major version (default: 17)
+#   PG_NAMESPACE          - namespace for postgres (default: postgres)
+#   DBAAS_NAMESPACE       - namespace for dbaas (default: dbaas)
+#   DBAAS_SERVICE_NAME    - dbaas service name (default: dbaas-aggregator)
+#   POSTGRES_PASSWORD     - postgres superuser password (default: MYrootPWD)
+#   REPLICATOR_PASSWORD   - postgres replication password (default: replicatorPWD)
+#   DBA_PASSWORD          - dbaas cluster-dba password (default: password)
+#   PATRONI_REPLICAS      - number of patroni replicas (default: 2)
+#   PATRONI_STORAGE_SIZE  - patroni PV size (default: 2Gi)
+#
+# Local build overrides (used with build-dependencies.sh):
+#   USE_LOCAL_PGSKIPPER   - use locally built pgskipper images (true/false, default: false)
+#   USE_LOCAL_DBAAS       - use locally built dbaas images (true/false, default: false)
+#   LOCAL_REGISTRY        - local container registry (default: localhost:5001)
+#   LOCAL_TAG             - tag applied to locally built images (default: local)
+
+{{ $pgskipperDir    := env "PGSKIPPER_DIR"        | default "/tmp/pgskipper-operator" }}
+{{ $dbaasDir        := env "DBAAS_DIR"            | default "/tmp/qubership-dbaas" }}
+{{ $imagePrefix     := env "IMAGE_PREFIX"         | default "ghcr.io/netcracker/" }}
+{{ $pgVersion       := env "PG_VERSION"           | default "17" }}
+{{ $pgNamespace     := env "PG_NAMESPACE"         | default "postgres" }}
+{{ $dbaasNamespace  := env "DBAAS_NAMESPACE"      | default "dbaas" }}
+{{ $dbaaSvcName     := env "DBAAS_SERVICE_NAME"   | default "dbaas-aggregator" }}
+{{ $postgresPass    := env "POSTGRES_PASSWORD"    | default "MYrootPWD" }}
+{{ $replicatorPass  := env "REPLICATOR_PASSWORD"  | default "replicatorPWD" }}
+{{ $dbaPass         := env "DBA_PASSWORD"         | default "password" }}
+{{ $storageClass    := env "STORAGE_CLASS"        | default "" }}
+{{ $replicas        := env "PATRONI_REPLICAS"     | default "2" }}
+{{ $storageSize     := env "PATRONI_STORAGE_SIZE" | default "2Gi" }}
+{{ $pgskipperTag    := env "PGSKIPPER_IMAGE_TAG"  | default "main" }}
+{{ $dbaasTag        := env "DBAAS_IMAGE_TAG"      | default "main" }}
+
+# ── Local build image resolution ─────────────────────────────────────────────
+{{ $useLocalPgskipper := env "USE_LOCAL_PGSKIPPER" | default "false" | eq "true" }}
+{{ $useLocalDbaas     := env "USE_LOCAL_DBAAS"     | default "false" | eq "true" }}
+{{ $localRegistry     := env "LOCAL_REGISTRY"      | default "localhost:5001" }}
+{{ $localTag          := env "LOCAL_TAG"           | default "local" }}
+
+# pgskipper-operator image (operator/charts/*/values.yaml: operator.image)
+{{ $operatorImage := printf "%spgskipper-operator:%s" $imagePrefix $pgskipperTag }}
+{{ if $useLocalPgskipper }}{{ $operatorImage = printf "%s/pgskipper-operator:%s" $localRegistry $localTag }}{{ end }}
+
+# Patroni/PostgreSQL image (patroni-core values.yaml: patroni.dockerImage)
+{{ $patroniImage := printf "%spgskipper-docker-patroni-%s:%s" $imagePrefix $pgVersion $pgskipperTag }}
+{{ if $useLocalPgskipper }}{{ $patroniImage = printf "%s/pgskipper-docker-patroni-%s:%s" $localRegistry $pgVersion $localTag }}{{ end }}
+
+# DBaaS images (dbaas-aggregator values.yaml: IMAGE_REPOSITORY, TAG, DECLARATIVE_HOOK_IMAGE)
+{{ $dbaasRepository := printf "%squbership-dbaas" $imagePrefix }}
+{{ $dbaasEffectiveTag := $dbaasTag }}
+{{ $dbaasHookImage  := printf "%squbership-dbaas-validation-image:%s" $imagePrefix $dbaasTag }}
+{{ if $useLocalDbaas }}
+  {{ $dbaasRepository = printf "%s/qubership-dbaas" $localRegistry }}
+  {{ $dbaasEffectiveTag = $localTag }}
+  {{ $dbaasHookImage = printf "%s/qubership-dbaas-validation-image:%s" $localRegistry $localTag }}
+{{ end }}
+
+releases:
+  # ── 1. PostgreSQL / Patroni core ─────────────────────────────────────────────
+  - name: patroni-core
+    namespace: {{ $pgNamespace }}
+    createNamespace: true
+    chart: {{ $pgskipperDir }}/operator/charts/patroni-core
+    timeout: 600
+    set:
+      - name: operator.image
+        value: {{ $operatorImage }}
+      - name: patroni.install
+        value: true
+      - name: patroni.replicas
+        value: {{ $replicas }}
+      - name: patroni.storage.type
+        value: provisioned
+      - name: patroni.storage.size
+        value: {{ $storageSize }}
+      - name: patroni.storage.storageClass
+        value: {{ $storageClass }}
+      - name: postgresPassword
+        value: {{ $postgresPass }}
+      - name: replicatorPassword
+        value: {{ $replicatorPass }}
+      - name: tests.install
+        value: true
+      - name: tests.runTestScenarios
+        value: basic
+      - name: patroni.dockerImage
+        value: {{ $patroniImage }}
+    wait: true
+
+  # ── 2. DBaaS Aggregator ───────────────────────────────────────────────────────
+  - name: dbaas-aggregator
+    namespace: {{ $dbaasNamespace }}
+    createNamespace: true
+    chart: {{ $dbaasDir }}/helm-templates/dbaas-aggregator
+    needs:
+      - {{ $pgNamespace }}/patroni-core
+    set:
+      - name: tests.install
+        value: true
+      - name: PRODUCTION_MODE
+        value: false
+      - name: NODE_SELECTOR_DBAAS_KEY
+        value: kubernetes.io/os
+      - name: REGION_DBAAS
+        value: linux
+      - name: DECLARATIVE_HOOK_IMAGE
+        value: {{ $dbaasHookImage }}
+      - name: IMAGE_REPOSITORY
+        value: {{ $dbaasRepository }}
+      - name: TAG
+        value: {{ $dbaasEffectiveTag }}
+      - name: SERVICE_NAME
+        value: {{ $dbaaSvcName }}
+      - name: POSTGRES_HOST
+        value: pg-patroni.{{ $pgNamespace }}.svc.cluster.local
+      - name: BACKUP_DAEMON_DBAAS_ACCESS_PASSWORD
+        value: password
+      - name: DBAAS_CLUSTER_DBA_CREDENTIALS_PASSWORD
+        value: {{ $dbaPass }}
+      - name: DBAAS_TENANT_PASSWORD
+        value: password
+      - name: DBAAS_DB_EDITOR_CREDENTIALS_PASSWORD
+        value: password
+      - name: DISCR_TOOL_USER_PASSWORD
+        value: password
+      - name: POSTGRES_DBAAS_USER
+        value: postgres
+      - name: POSTGRES_DBAAS_PASSWORD
+        value: {{ $postgresPass }}
+      - name: POSTGRES_DBAAS_DATABASE_NAME
+        value: dbaas
+      - name: DBAAS_BACKUP_RESTORE_CHECK_ATTEMPTS
+        value: 20
+      - name: DBAAS_BACKUP_RESTORE_RETRY_DELAY_SECONDS
+        value: 3
+      - name: DBAAS_BACKUP_RESTORE_RETRY_ATTEMPTS
+        value: 3
+      - name: DBAAS_BACKUP_RESTORE_CHECK_INTERVAL
+        value: 1m
+      - name: DBAAS_BACKUP_RESTORE_CHECK_LOCK_TIMEOUT
+        value: PT10M
+    wait: true
+
+  # ── 3. Patroni supplementary services (metrics, dbaas registration) ──────────
+  - name: patroni-services
+    namespace: {{ $pgNamespace }}
+    createNamespace: true
+    chart: {{ $pgskipperDir }}/operator/charts/patroni-services
+    needs:
+      - {{ $dbaasNamespace }}/dbaas-aggregator
+    set:
+      - name: operator.image
+        value: {{ $operatorImage }}
+      - name: postgresPassword
+        value: {{ $postgresPass }}
+      - name: metricCollector.install
+        value: true
+      - name: patroni.replicas
+        value: {{ $replicas }}
+      - name: backupDaemon.install
+        value: false
+      - name: backupDaemon.storage.storageClass
+        value: {{ $storageClass }}
+      - name: tests.install
+        value: true
+      - name: tests.runTestScenarios
+        value: basic
+      - name: dbaas.install
+        value: true
+      - name: dbaas.aggregator.registrationAddress
+        value: http://{{ $dbaaSvcName }}.{{ $dbaasNamespace }}.svc.cluster.local:8080
+      - name: dbaas.aggregator.registrationUsername
+        value: cluster-dba
+      - name: dbaas.aggregator.registrationPassword
+        value: {{ $dbaPass }}
+    wait: true
+
+  # ── 4. Inventory service (test application) ───────────────────────────────────
+  - name: inventory-service
+    namespace: inventory
+    createNamespace: true
+    chart: ./app/helm/inventory-service
+    needs:
+      - {{ $pgNamespace }}/patroni-services
+    set:
+      - name: image.registry
+        value: {{ $localRegistry }}
+      - name: workers.count
+        value: 4
+      - name: dbaas.url
+        value: http://{{ $dbaaSvcName }}.{{ $dbaasNamespace }}.svc.cluster.local:8080
+      - name: dbaas.user
+        value: cluster-dba
+      - name: dbaas.password
+        value: {{ $dbaPass }}
+    wait: true
