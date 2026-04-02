@@ -118,7 +118,7 @@ deploy_scenario() {
         replace_in_file "image: inventory-service:" "image: ${KIND_REGISTRY}/inventory-service:" "$temp_yaml"
     fi
 
-    kubectl apply -f "$temp_yaml" -n "$NAMESPACE"
+    kubectl -n "$NAMESPACE" apply -f "$temp_yaml"
     rm "$temp_yaml"
 
     echo ""
@@ -146,21 +146,21 @@ status_scenario() {
     fi
 
     echo "=== Deployment Status ==="
-    kubectl get deployment "$deployment_name" -n "$NAMESPACE" 2>/dev/null || echo "Deployment not found"
+    kubectl -n "$NAMESPACE" get deployment "$deployment_name" 2>/dev/null || echo "Deployment not found"
 
     echo ""
     echo "=== Pod Status ==="
-    kubectl get pods -l "scenario=${scenario}" -n "$NAMESPACE"
+    kubectl -n "$NAMESPACE" get pods -l "scenario=${scenario}"
 
     echo ""
     echo "=== ConfigMap ==="
-    kubectl get configmap "$deployment_name" -n "$NAMESPACE" -o yaml 2>/dev/null | grep -A15 "^data:" || echo "ConfigMap not found"
+    kubectl -n "$NAMESPACE" get configmap "$deployment_name" -o yaml 2>/dev/null | grep -A15 "^data:" || echo "ConfigMap not found"
 }
 
 logs_scenario() {
     local scenario=$1
     local pod
-    pod=$(kubectl get pods -l "scenario=${scenario}" -n "$NAMESPACE" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+    pod=$(kubectl -n "$NAMESPACE" get pods -l "scenario=${scenario}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
 
     if [ -z "$pod" ]; then
         echo "Error: No pod found for scenario: $scenario"
@@ -168,7 +168,7 @@ logs_scenario() {
     fi
 
     echo "Following logs for pod: $pod"
-    kubectl logs -f "$pod" -n "$NAMESPACE"
+    kubectl -n "$NAMESPACE" logs -f "$pod"
 }
 
 api_scenario() {
@@ -204,15 +204,15 @@ stop_scenario() {
     fi
 
     echo "Stopping scenario: $scenario"
-    kubectl delete -f "$yaml_file" -n "$NAMESPACE"
+    kubectl -n "$NAMESPACE" delete -f "$yaml_file"
     echo "Scenario stopped"
 }
 
 stop_all() {
     echo "Stopping all inventory-service batch scenarios in namespace: $NAMESPACE"
-    kubectl delete deployment -l "app=inventory-service" -n "$NAMESPACE"
-    kubectl delete configmap -l "app=inventory-service" -n "$NAMESPACE"
-    kubectl delete service -l "app=inventory-service" -n "$NAMESPACE"
+    kubectl -n "$NAMESPACE" delete deployment -l "app=inventory-service"
+    kubectl -n "$NAMESPACE" delete configmap -l "app=inventory-service"
+    kubectl -n "$NAMESPACE" delete service -l "app=inventory-service"
     echo "All scenarios stopped"
 }
 
@@ -226,7 +226,7 @@ run_scenario() {
 
     echo ""
     echo "2. Waiting for pod to be ready..."
-    kubectl wait --for=condition=ready pod -l "scenario=${scenario}" -n "$NAMESPACE" --timeout=120s
+    kubectl -n "$NAMESPACE" wait --for=condition=ready pod -l "scenario=${scenario}" --timeout=120s
 
     echo ""
     echo "3. Scenario is running. Batch jobs are now active."
