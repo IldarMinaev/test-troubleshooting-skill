@@ -130,7 +130,7 @@ if [[ "$BUILD_PGSKIPPER" == "true" ]]; then
     require_cmd make
     if [ ! -d "$PGSKIPPER_DIR/.git" ]; then
         log_error "pgskipper-operator repo not found at $PGSKIPPER_DIR"
-        log_error "Clone it first: git clone git@github.com:Netcracker/pgskipper-operator.git $PGSKIPPER_DIR"
+        log_error "Clone it first: git clone https://github.com/Netcracker/pgskipper-operator.git $PGSKIPPER_DIR"
         exit 1
     fi
 fi
@@ -139,7 +139,7 @@ if [[ "$BUILD_DBAAS" == "true" ]]; then
     require_cmd mvn
     if [ ! -d "$DBAAS_DIR/.git" ]; then
         log_error "qubership-dbaas repo not found at $DBAAS_DIR"
-        log_error "Clone it first: git clone git@github.com:Netcracker/qubership-dbaas.git $DBAAS_DIR"
+        log_error "Clone it first: git clone https://github.com/Netcracker/qubership-dbaas.git $DBAAS_DIR"
         exit 1
     fi
 fi

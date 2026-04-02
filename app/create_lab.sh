@@ -25,8 +25,8 @@ PGSKIPPER_DIR="${PGSKIPPER_DIR:-/tmp/pgskipper-operator}"
 DBAAS_DIR="${DBAAS_DIR:-/tmp/qubership-dbaas}"
 
 # Repo URLs
-PGSKIPPER_REPO="${PGSKIPPER_REPO:-git@github.com:Netcracker/pgskipper-operator.git}"
-DBAAS_REPO="${DBAAS_REPO:-git@github.com:Netcracker/qubership-dbaas.git}"
+PGSKIPPER_REPO="${PGSKIPPER_REPO:-https://github.com/Netcracker/pgskipper-operator.git}"
+DBAAS_REPO="${DBAAS_REPO:-https://github.com/Netcracker/qubership-dbaas.git}"
 
 # Image settings
 IMAGE_PREFIX="${IMAGE_PREFIX:-ghcr.io/netcracker/}"

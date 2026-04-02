@@ -88,7 +88,7 @@ They are kept here as a reference.
 
 ```bash
 cd /tmp
-git clone git@github.com:Netcracker/pgskipper-operator.git
+git clone https://github.com/Netcracker/pgskipper-operator.git
 cd pgskipper-operator
 # For latest
 LATEST_TAG="$(git describe --tags "$(git rev-list --tags --max-count=1)")"
@@ -132,7 +132,7 @@ kubectl logs -n postgres integration-robot-tests
 
 ```bash
 cd /tmp/
-git clone git@github.com:Netcracker/qubership-dbaas.git
+git clone https://github.com/Netcracker/qubership-dbaas.git
 cd qubership-dbaas
 LATEST_TAG="$(git describe --tags "$(git rev-list --tags --max-count=1)")"
 GIT_TAG=${LATEST_TAG}
