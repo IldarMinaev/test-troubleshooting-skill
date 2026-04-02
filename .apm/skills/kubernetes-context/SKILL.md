@@ -35,7 +35,7 @@ If the namespace is not found, ask the user to confirm the correct one.
 
 ```bash
 kubectl auth can-i get pods -n <NAMESPACE>
-kubectl auth can-i exec pods -n <NAMESPACE>
+kubectl auth can-i create pods/exec -n <NAMESPACE>
 ```
 
 If either returns `no`, stop and report the missing permission to the user.
