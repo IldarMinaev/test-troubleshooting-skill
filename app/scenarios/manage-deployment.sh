@@ -6,6 +6,22 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAMESPACE="${NAMESPACE:-${APP_NAMESPACE:-inventory}}"
 
+# Detect kind registry
+KIND_REGISTRY=""
+if curl -s --connect-timeout 2 "http://localhost:5001/v2/" > /dev/null 2>&1; then
+    KIND_REGISTRY="localhost:5001"
+fi
+
+# Auto-detect DBAAS credentials if not set
+if [ -z "$DBAAS_URL" ] && [ -z "$DBAAS_USER" ] && [ -z "$DBAAS_PASSWORD" ]; then
+    DBAAS_NAMESPACE="${DBAAS_NAMESPACE:-dbaas}"
+    if kubectl get namespace "$DBAAS_NAMESPACE" > /dev/null 2>&1; then
+        export DBAAS_URL="http://dbaas-aggregator.${DBAAS_NAMESPACE}.svc.cluster.local:8080"
+        export DBAAS_USER="cluster-dba"
+        export DBAAS_PASSWORD=$(kubectl get secret -n "${DBAAS_NAMESPACE}" dbaas-security-configuration-secret -o jsonpath='{.data.users\.json}' | base64 -d | jq -r '."cluster-dba".password')
+    fi
+fi
+
 escape_sed_replacement() {
     printf '%s' "$1" | sed -e 's/[&|\\]/\\&/g'
 }
@@ -97,6 +113,9 @@ deploy_scenario() {
     fi
     if [ -n "$DBAAS_PASSWORD" ]; then
         replace_in_file "your-password-here" "$DBAAS_PASSWORD" "$temp_yaml"
+    fi
+    if [ -n "$KIND_REGISTRY" ]; then
+        replace_in_file "image: inventory-service:" "image: ${KIND_REGISTRY}/inventory-service:" "$temp_yaml"
     fi
 
     kubectl apply -f "$temp_yaml" -n "$NAMESPACE"

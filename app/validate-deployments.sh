@@ -97,10 +97,18 @@ check_prerequisites() {
         kubectl create namespace "$NAMESPACE"
     fi
 
-    # Check DBAAS credentials
-    if [ -z "$DBAAS_URL" ] || [ -z "$DBAAS_USER" ] || [ -z "$DBAAS_PASSWORD" ]; then
-        log_warn "DBAAS credentials not set. Scenarios may fail to provision database."
-        log_warn "Set DBAAS_URL, DBAAS_USER, DBAAS_PASSWORD environment variables."
+    # Auto-detect DBAAS credentials if not set
+    if [ -z "$DBAAS_URL" ] && [ -z "$DBAAS_USER" ] && [ -z "$DBAAS_PASSWORD" ]; then
+        DBAAS_NAMESPACE="${DBAAS_NAMESPACE:-dbaas}"
+        if kubectl get namespace "$DBAAS_NAMESPACE" > /dev/null 2>&1; then
+            log_info "Detected DBAAS namespace '$DBAAS_NAMESPACE', reading credentials..."
+            export DBAAS_URL="http://dbaas-aggregator.${DBAAS_NAMESPACE}.svc.cluster.local:8080"
+            export DBAAS_USER="cluster-dba"
+            export DBAAS_PASSWORD=$(kubectl get secret -n "${DBAAS_NAMESPACE}" dbaas-security-configuration-secret -o jsonpath='{.data.users\.json}' | base64 -d | jq -r '."cluster-dba".password')
+        else
+            log_warn "DBAAS credentials not set and namespace '$DBAAS_NAMESPACE' not found."
+            log_warn "Set DBAAS_URL, DBAAS_USER, DBAAS_PASSWORD environment variables."
+        fi
     fi
 
     log_info "Prerequisites OK"

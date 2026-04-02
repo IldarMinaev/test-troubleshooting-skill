@@ -112,6 +112,16 @@ while [ $# -gt 0 ]; do
     esac
 done
 
+# Auto-detect kind registry if no registry specified
+if [ -z "$REGISTRY" ]; then
+    KIND_REGISTRY="localhost:5001"
+    if curl -s --connect-timeout 2 "http://${KIND_REGISTRY}/v2/" > /dev/null 2>&1; then
+        log_info "Kind registry detected at ${KIND_REGISTRY}, will push image"
+        REGISTRY="$KIND_REGISTRY"
+        PUSH=true
+    fi
+fi
+
 # Construct full image name
 if [ -n "$REGISTRY" ]; then
     FULL_IMAGE="${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"

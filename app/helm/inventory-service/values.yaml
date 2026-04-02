@@ -1,4 +1,5 @@
 image:
+  registry: ""
   repository: inventory-service
   tag: latest
   pullPolicy: IfNotPresent
