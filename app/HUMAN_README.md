@@ -328,5 +328,5 @@ cd engineer-workspace
 ## Use prompt
 
 ```txt
-Check status of postgres database in my rancher-desktop k8s cluster. Find any critical issue. Identify root cause of found issues. Propose solution to fix the issues.
+Check status of postgres database in my local dev k8s cluster. Find any critical issue. Identify root cause of found issues. Propose solution to fix the issues.
 ```
