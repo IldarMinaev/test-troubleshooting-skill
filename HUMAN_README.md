@@ -16,6 +16,7 @@ PG_NAMESPACE=postgres
 DBAAS_NAMESPACE=dbaas
 DBAAS_SERVICE_NAME=dbaas-aggregator
 POSTGRES_PASSWORD=MYrootPWD
+STORAGE_CLASS=$(kubectl get storageclass -o jsonpath='{.items[?(@.metadata.annotations.storageclass\.kubernetes\.io/is-default-class=="true")].metadata.name}')
 
 git checkout ${GIT_TAG}
 
@@ -28,7 +29,7 @@ helm upgrade patroni-core ./operator/charts/patroni-core \
   --set='patroni.replicas=2'                       `# Configure number of replicas` \
   --set='patroni.storage.type=provisioned'         `# Configure used storage provisioner` \
   --set='patroni.storage.size=2Gi'                 `# Size of PV requested` \
-  --set='patroni.storage.storageClass=local-path'  `# Default in Rancher Desktop` \
+  --set='patroni.storage.storageClass=${STORAGE_CLASS}'  `# Default in Rancher Desktop` \
   --set="postgresPassword=${POSTGRES_PASSWORD}"    `# Database superuser password` \
   --set='replicatorPassword=replicatorPWD'         `# Database replication password` \
   --set='tests.install=true'                       `# Install and run tests` \
@@ -101,10 +102,10 @@ helm upgrade patroni-services ./operator/charts/patroni-services \
   --set="postgresPassword=${POSTGRES_PASSWORD}"         `# Database superuser password` \
   --set='metricCollector.install=true'                  `# Install and run metrics collector` \
   --set='patroni.replicas=2'                            `# Configure number of replicas` \
-  --set='backupDaemon.install=false'                    `# Do not install and run backup Daemon, it not working` \
+  --set='backupDaemon.install=false'                    `# Install and run backup Daemon` \
   --set='tests.install=true'                            `# Install and run tests` \
   --set='tests.runTestScenarios=basic'                  `# Configure tests scenarios` \
-  --set='backupDaemon.storage.storageClass=local-path'  `# Default in Rancher Desktop` \
+  --set='backupDaemon.storage.storageClass=${STORAGE_CLASS}'  `# Default in Rancher Desktop` \
   --set='dbaas.install=true' \
   --set="dbaas.aggregator.registrationAddress=http://${DBAAS_SERVICE_NAME}.${DBAAS_NAMESPACE}.svc.cluster.local:8080" \
   --set='dbaas.aggregator.registrationUsername=cluster-dba' \
@@ -128,10 +129,10 @@ APP_NAMESPACE=test-app
 
 DBA_PASSWORD=$(kubectl get secret -n ${DBAAS_NAMESPACE} dbaas-security-configuration-secret -o jsonpath='{.data.users\.json}' | base64 -d | jq -r '."cluster-dba".password')
 
-echo ====== List registered Databases ======; kubectl exec -it -n ${DBAAS_NAMESPACE} deployments/dbaas-aggregator --\
+echo ====== List registered Databases ======; kubectl exec -n ${DBAAS_NAMESPACE} deployments/dbaas-aggregator -- \
   curl -sk -u cluster-dba:${DBA_PASSWORD} \
-    "http://${DBAAS_SERVICE_NAME}.${DBAAS_NAMESPACE}.svc.cluster.local:8080/api/v3/dbaas/all/physical_databases" \
-    | jq -r '
+    "http://${DBAAS_SERVICE_NAME}.${DBAAS_NAMESPACE}.svc.cluster.local:8080/api/v3/dbaas/all/physical_databases" |
+    jq -r '
         .identified | to_entries[]
         | [.key, .value.type, .value.adapterAddress]
         | @tsv
