@@ -72,7 +72,6 @@ releases:
     namespace: {{ $pgNamespace }}
     createNamespace: true
     chart: {{ $pgskipperDir }}/operator/charts/patroni-core
-    timeout: 600
     set:
       - name: operator.image
         value: {{ $operatorImage }}
@@ -96,13 +95,16 @@ releases:
         value: basic
       - name: patroni.dockerImage
         value: {{ $patroniImage }}
-    wait: true
+    # PatroniCore CR uses a non-standard condition (Successful, not Ready) so
+    # Helm --wait never resolves it. Ordering is enforced via needs: instead.
+    wait: false
 
   # ── 2. DBaaS Aggregator ───────────────────────────────────────────────────────
   - name: dbaas-aggregator
     namespace: {{ $dbaasNamespace }}
     createNamespace: true
     chart: {{ $dbaasDir }}/helm-templates/dbaas-aggregator
+    timeout: 600
     needs:
       - {{ $pgNamespace }}/patroni-core
     set:
@@ -184,7 +186,8 @@ releases:
         value: cluster-dba
       - name: dbaas.aggregator.registrationPassword
         value: {{ $dbaPass }}
-    wait: true
+    # Same reason as patroni-core: PatroniService CR is non-standard for --wait.
+    wait: false
 
   # ── 4. Inventory service (test application) ───────────────────────────────────
   - name: inventory-service
