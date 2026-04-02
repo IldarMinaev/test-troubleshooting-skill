@@ -22,7 +22,7 @@ Before starting any investigation:
 1. Run the [`kubernetes-context`](../kubernetes-context/SKILL.md) skill to verify cluster access and resolve the target namespace.
 2. Ensure the user is available to answer clarifying questions throughout the session.
 
-See the [`troubleshooting-triage`](../../prompts/troubleshooting-triage.prompt.md) prompt for quick symptom-to-skill lookup when the problem is already clear.
+See the `troubleshooting-triage` prompt/command for quick symptom-to-skill lookup when the problem is already clear.
 
 ## Step 1: Problem Intake
 
