@@ -193,7 +193,7 @@ releases:
   - name: inventory-service
     namespace: inventory
     createNamespace: true
-    chart: ./app/helm/inventory-service
+    chart: ./helm/inventory-service
     needs:
       - {{ $pgNamespace }}/patroni-services
     set:
