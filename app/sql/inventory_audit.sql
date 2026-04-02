@@ -1,4 +1,4 @@
--- Batch inventory lock: hold row locks for a period, causing other sessions to wait.
+-- Inventory audit: lock sampled rows while verifying counts.
 -- Uses FOR UPDATE NOWAIT so the caller gets an immediate error if the row is already locked.
 BEGIN;
 

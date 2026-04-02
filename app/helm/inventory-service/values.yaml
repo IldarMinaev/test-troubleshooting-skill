@@ -20,9 +20,9 @@ dbaas:
 workers:
   count: 4
   insertRateMbPerHour: 100
-  workloadMix: "insert:40,select:30,update:15,lock_contention:5,temp_table_bloat:5,connection_bloat:5"
-  longQueryDurationSeconds: 300
-  deadlockIntervalSeconds: 600
+  taskDistribution: "insert:40,select:30,update:15,inventory_audit:5,bulk_reconciliation:5,approval_hold:5"
+  reportTimeoutSeconds: 300
+  reconciliationIntervalSeconds: 600
 
 # ── Batch Mode Configuration ─────────────────────────────────────
 # Used when mode=batch (batch processing jobs)

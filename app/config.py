@@ -15,12 +15,12 @@ class Config:
         # Optional with defaults
         self.worker_count = int(os.environ.get("WORKER_COUNT", "4"))
         self.insert_rate_mb_per_hour = float(os.environ.get("INSERT_RATE_MB_PER_HOUR", "100"))
-        self.long_query_duration_seconds = int(os.environ.get("LONG_QUERY_DURATION_SECONDS", "300"))
-        self.deadlock_interval_seconds = int(os.environ.get("DEADLOCK_INTERVAL_SECONDS", "600"))
-        self.workload_mix = self._parse_workload_mix(
+        self.report_timeout_seconds = int(os.environ.get("REPORT_TIMEOUT_SECONDS", "300"))
+        self.reconciliation_interval_seconds = int(os.environ.get("RECONCILIATION_INTERVAL_SECONDS", "600"))
+        self.task_distribution = self._parse_task_distribution(
             os.environ.get(
-                "WORKLOAD_MIX",
-                "insert:40,select:30,update:15,lock_contention:5,temp_table_bloat:5,connection_bloat:5",
+                "TASK_DISTRIBUTION",
+                "insert:40,select:30,update:15,inventory_audit:5,bulk_reconciliation:5,approval_hold:5",
             )
         )
 
@@ -35,13 +35,13 @@ class Config:
         return value
 
     @staticmethod
-    def _parse_workload_mix(raw):
+    def _parse_task_distribution(raw):
         """Parse 'insert:40,select:30,...' into {name: weight} dict."""
         mix = {}
         for part in raw.split(","):
             part = part.strip()
             if ":" not in part:
-                print(f"FATAL: invalid WORKLOAD_MIX entry '{part}', expected 'name:weight'", file=sys.stderr)
+                print(f"FATAL: invalid TASK_DISTRIBUTION entry '{part}', expected 'name:weight'", file=sys.stderr)
                 sys.exit(1)
             name, weight_str = part.split(":", 1)
             mix[name.strip()] = int(weight_str.strip())
@@ -54,10 +54,10 @@ class Config:
         if self.insert_rate_mb_per_hour <= 0:
             print("FATAL: INSERT_RATE_MB_PER_HOUR must be > 0", file=sys.stderr)
             sys.exit(1)
-        if not self.workload_mix:
-            print("FATAL: WORKLOAD_MIX must not be empty", file=sys.stderr)
+        if not self.task_distribution:
+            print("FATAL: TASK_DISTRIBUTION must not be empty", file=sys.stderr)
             sys.exit(1)
-        total_weight = sum(self.workload_mix.values())
+        total_weight = sum(self.task_distribution.values())
         if total_weight <= 0:
-            print("FATAL: WORKLOAD_MIX total weight must be > 0", file=sys.stderr)
+            print("FATAL: TASK_DISTRIBUTION total weight must be > 0", file=sys.stderr)
             sys.exit(1)

@@ -1,0 +1,15 @@
+-- Approval hold transaction (documentation only — executed programmatically in Python)
+--
+-- Opens a connection, begins a transaction, runs a trivial query, then holds
+-- the connection while the approval workflow awaits external sign-off.
+--
+-- Python implementation:
+--   conn = pool.getconn()
+--   conn.autocommit = False
+--   cur = conn.cursor()
+--   cur.execute("SELECT 1")
+--   shutdown_event.wait(timeout=random.uniform(30, 120))  # waiting for approval
+--   conn.rollback()
+--   pool.putconn(conn)
+--
+-- While waiting, the session remains open in the database and occupies a connection slot.
