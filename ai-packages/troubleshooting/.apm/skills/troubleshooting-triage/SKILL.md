@@ -1,7 +1,6 @@
 ---
-description: Map a reported symptom to the correct troubleshooting skill sequence
-input:
-  symptom: Description of the problem or error being observed (e.g. "application can't connect to the database", "disk space running out")
+name: troubleshooting-triage
+description: Map a reported symptom to the correct troubleshooting skill sequence. Input symptom(s): description of the problem or error being observed (e.g. "application can't connect to the database", "disk space running out")
 ---
 
 Given the reported symptom: **${input:symptom}**
