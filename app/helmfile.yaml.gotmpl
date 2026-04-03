@@ -46,25 +46,33 @@
 {{ $useLocalPgskipper := env "USE_LOCAL_PGSKIPPER" | default "false" | eq "true" }}
 {{ $useLocalDbaas     := env "USE_LOCAL_DBAAS"     | default "false" | eq "true" }}
 {{ $localRegistry     := env "LOCAL_REGISTRY"      | default "localhost:5001" }}
+{{ $localDirect       := eq $localRegistry "local" }}
 {{ $localTag          := env "LOCAL_TAG"           | default "local" }}
 
-# pgskipper-operator image (operator/charts/*/values.yaml: operator.image)
-{{ $operatorImage := printf "%spgskipper-operator:%s" $imagePrefix $pgskipperTag }}
-{{ if $useLocalPgskipper }}{{ $operatorImage = printf "%s/pgskipper-operator:%s" $localRegistry $localTag }}{{ end }}
+# Effective image prefix: "registry/" for registry-based, "" for local-direct (OrbStack).
+# This single variable replaces all the per-image if/else branching.
+{{ $localPrefix := "" }}
+{{ if not $localDirect }}{{ $localPrefix = printf "%s/" $localRegistry }}{{ end }}
 
-# Patroni/PostgreSQL image (patroni-core values.yaml: patroni.dockerImage)
-{{ $patroniImage := printf "%spgskipper-docker-patroni-%s:%s" $imagePrefix $pgVersion $pgskipperTag }}
-{{ if $useLocalPgskipper }}{{ $patroniImage = printf "%s/pgskipper-docker-patroni-%s:%s" $localRegistry $pgVersion $localTag }}{{ end }}
-
-# DBaaS images (dbaas-aggregator values.yaml: IMAGE_REPOSITORY, TAG, DECLARATIVE_HOOK_IMAGE)
-{{ $dbaasRepository := printf "%squbership-dbaas" $imagePrefix }}
-{{ $dbaasEffectiveTag := $dbaasTag }}
-{{ $dbaasHookImage  := printf "%squbership-dbaas-validation-image:%s" $imagePrefix $dbaasTag }}
-{{ if $useLocalDbaas }}
-  {{ $dbaasRepository = printf "%s/qubership-dbaas" $localRegistry }}
-  {{ $dbaasEffectiveTag = $localTag }}
-  {{ $dbaasHookImage = printf "%s/qubership-dbaas-validation-image:%s" $localRegistry $localTag }}
+# pgskipper images
+{{ $pgskipperPrefix := $imagePrefix }}
+{{ $pgskipperEffectiveTag := $pgskipperTag }}
+{{ if $useLocalPgskipper }}
+  {{ $pgskipperPrefix = $localPrefix }}
+  {{ $pgskipperEffectiveTag = $localTag }}
 {{ end }}
+{{ $operatorImage := printf "%spgskipper-operator:%s" $pgskipperPrefix $pgskipperEffectiveTag }}
+{{ $patroniImage  := printf "%spgskipper-docker-patroni-%s:%s" $pgskipperPrefix $pgVersion $pgskipperEffectiveTag }}
+
+# DBaaS images
+{{ $dbaasPrefix := $imagePrefix }}
+{{ $dbaasEffectiveTag := $dbaasTag }}
+{{ if $useLocalDbaas }}
+  {{ $dbaasPrefix = $localPrefix }}
+  {{ $dbaasEffectiveTag = $localTag }}
+{{ end }}
+{{ $dbaasRepository := printf "%squbership-dbaas" $dbaasPrefix }}
+{{ $dbaasHookImage  := printf "%squbership-dbaas-validation-image:%s" $dbaasPrefix $dbaasEffectiveTag }}
 
 releases:
   # ── 1. PostgreSQL / Patroni core ─────────────────────────────────────────────
@@ -197,8 +205,10 @@ releases:
     needs:
       - {{ $pgNamespace }}/patroni-services
     set:
+{{ if not $localDirect }}
       - name: image.registry
         value: {{ $localRegistry }}
+{{ end }}
       - name: workers.count
         value: 4
       - name: dbaas.url

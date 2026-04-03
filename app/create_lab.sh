@@ -52,6 +52,9 @@ USE_LOCAL_DBAAS="${USE_LOCAL_DBAAS:-false}"
 LOCAL_REGISTRY="${LOCAL_REGISTRY:-}"   # auto-detected if empty
 LOCAL_TAG="${LOCAL_TAG:-local}"
 
+# Optional: checkout a specific ref (branch/tag/commit) for pgskipper-operator
+PGSKIPPER_REF="${PGSKIPPER_REF:-}"
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 GREEN='\033[0;32m'
@@ -87,6 +90,13 @@ detect_local_registry() {
             return
         fi
     done
+}
+
+# Returns true if the current Kubernetes cluster is OrbStack.
+# OrbStack shares the Docker daemon with K8s, so images are available
+# without a registry — just docker build/tag and set imagePullPolicy=Never.
+is_orbstack() {
+    [[ "$(kubectl get nodes -o jsonpath='{.items[0].status.nodeInfo.osImage}' 2>/dev/null)" == "OrbStack" ]]
 }
 
 usage() {
@@ -152,6 +162,8 @@ while [[ $# -gt 0 ]]; do
         --local)           USE_LOCAL_PGSKIPPER=true; USE_LOCAL_DBAAS=true; shift ;;
         --registry)        LOCAL_REGISTRY="$2";      shift 2 ;;
         --local-tag)       LOCAL_TAG="$2";           shift 2 ;;
+        --pgskipper-repo)  PGSKIPPER_REPO="$2";     shift 2 ;;
+        --pgskipper-ref)   PGSKIPPER_REF="$2";      shift 2 ;;
         --help|-h)         usage; exit 0 ;;
         *)
             log_error "Unknown option: $1"
@@ -173,20 +185,44 @@ log_info "========================================"
 
 # ── Step 1: Clone / update repos ─────────────────────────────────────────────
 
-# Clone if absent, or fetch tags if already present
+# Clone if absent, or fetch if already present
 if [ -d "$PGSKIPPER_DIR/.git" ]; then
-    log_info "pgskipper-operator repo exists at $PGSKIPPER_DIR — fetching tags"
-    git -C "$PGSKIPPER_DIR" fetch --tags --quiet
+    log_info "pgskipper-operator repo exists at $PGSKIPPER_DIR"
+    # Ensure the configured repo URL is available as a remote
+    CURRENT_ORIGIN="$(git -C "$PGSKIPPER_DIR" remote get-url origin 2>/dev/null || true)"
+    if [[ "$CURRENT_ORIGIN" != "$PGSKIPPER_REPO" ]]; then
+        # Add the configured repo as a remote so we can fetch from it
+        git -C "$PGSKIPPER_DIR" remote remove pgskipper-lab 2>/dev/null || true
+        git -C "$PGSKIPPER_DIR" remote add pgskipper-lab "$PGSKIPPER_REPO"
+        log_info "Added remote pgskipper-lab -> $PGSKIPPER_REPO"
+        git -C "$PGSKIPPER_DIR" fetch pgskipper-lab --tags --quiet
+    else
+        git -C "$PGSKIPPER_DIR" fetch origin --tags --quiet
+    fi
 else
     log_info "Cloning pgskipper-operator -> $PGSKIPPER_DIR"
     git clone "$PGSKIPPER_REPO" "$PGSKIPPER_DIR"
 fi
 
-if [ -z "${PGSKIPPER_IMAGE_TAG:-}" ]; then
-    PGSKIPPER_IMAGE_TAG="$(latest_tag "$PGSKIPPER_DIR")"
+# Checkout a specific ref if requested
+if [ -n "$PGSKIPPER_REF" ]; then
+    log_info "Checking out pgskipper-operator ref: $PGSKIPPER_REF"
+    git -C "$PGSKIPPER_DIR" checkout --quiet "$PGSKIPPER_REF" 2>/dev/null \
+        || git -C "$PGSKIPPER_DIR" checkout --quiet -b "$PGSKIPPER_REF" "pgskipper-lab/$PGSKIPPER_REF" 2>/dev/null \
+        || git -C "$PGSKIPPER_DIR" checkout --quiet -b "$PGSKIPPER_REF" "origin/$PGSKIPPER_REF"
 fi
-log_info "pgskipper-operator tag: $PGSKIPPER_IMAGE_TAG"
-git -C "$PGSKIPPER_DIR" checkout --quiet "$PGSKIPPER_IMAGE_TAG"
+
+if [[ "$USE_LOCAL_PGSKIPPER" == "true" ]]; then
+    # When using locally built images, use the repo as-is (user's branch).
+    PGSKIPPER_IMAGE_TAG="$(git -C "$PGSKIPPER_DIR" describe --tags --always 2>/dev/null || echo "local")"
+    log_info "pgskipper-operator (local): $PGSKIPPER_IMAGE_TAG ($(git -C "$PGSKIPPER_DIR" branch --show-current 2>/dev/null || git -C "$PGSKIPPER_DIR" rev-parse --short HEAD))"
+else
+    if [ -z "${PGSKIPPER_IMAGE_TAG:-}" ]; then
+        PGSKIPPER_IMAGE_TAG="$(latest_tag "$PGSKIPPER_DIR")"
+    fi
+    log_info "pgskipper-operator tag: $PGSKIPPER_IMAGE_TAG"
+    git -C "$PGSKIPPER_DIR" checkout --quiet "$PGSKIPPER_IMAGE_TAG"
+fi
 
 if [ -d "$DBAAS_DIR/.git" ]; then
     log_info "qubership-dbaas repo exists at $DBAAS_DIR — fetching tags"
@@ -220,19 +256,30 @@ fi
 
 if [[ "$USE_LOCAL_PGSKIPPER" == "true" || "$USE_LOCAL_DBAAS" == "true" ]]; then
     if [ -z "$LOCAL_REGISTRY" ]; then
-        LOCAL_REGISTRY="$(detect_local_registry)"
-        if [ -z "$LOCAL_REGISTRY" ]; then
-            log_error "No local registry detected. Start kind (localhost:5001) or set LOCAL_REGISTRY."
-            log_error "You can start a kind registry with: kind create cluster --config kind-config.yaml"
-            exit 1
+        if is_orbstack; then
+            # OrbStack shares the Docker daemon with K8s — no registry needed.
+            LOCAL_REGISTRY="local"
+            log_info "OrbStack detected — using local Docker images directly (no registry needed)"
+        else
+            LOCAL_REGISTRY="$(detect_local_registry)"
+            if [ -z "$LOCAL_REGISTRY" ]; then
+                log_error "No local registry detected. Start kind (localhost:5001) or set LOCAL_REGISTRY."
+                log_error "You can start a kind registry with: kind create cluster --config kind-config.yaml"
+                exit 1
+            fi
+            log_info "Local registry detected: $LOCAL_REGISTRY"
         fi
-        log_info "Local registry detected: $LOCAL_REGISTRY"
     else
         log_info "Local registry: $LOCAL_REGISTRY"
     fi
     log_info "Local tag     : $LOCAL_TAG"
-    [[ "$USE_LOCAL_PGSKIPPER" == "true" ]] && log_info "pgskipper images: $LOCAL_REGISTRY/pgskipper-operator:$LOCAL_TAG"
-    [[ "$USE_LOCAL_DBAAS"     == "true" ]] && log_info "dbaas images    : $LOCAL_REGISTRY/qubership-dbaas:$LOCAL_TAG"
+    if [[ "$LOCAL_REGISTRY" != "local" ]]; then
+        [[ "$USE_LOCAL_PGSKIPPER" == "true" ]] && log_info "pgskipper images: $LOCAL_REGISTRY/pgskipper-operator:$LOCAL_TAG"
+        [[ "$USE_LOCAL_DBAAS"     == "true" ]] && log_info "dbaas images    : $LOCAL_REGISTRY/qubership-dbaas:$LOCAL_TAG"
+    else
+        [[ "$USE_LOCAL_PGSKIPPER" == "true" ]] && log_info "pgskipper images: pgskipper-operator:$LOCAL_TAG (local docker)"
+        [[ "$USE_LOCAL_DBAAS"     == "true" ]] && log_info "dbaas images    : qubership-dbaas:$LOCAL_TAG (local docker)"
+    fi
 fi
 
 # ── Step 4: Export variables for helmfile ─────────────────────────────────────
