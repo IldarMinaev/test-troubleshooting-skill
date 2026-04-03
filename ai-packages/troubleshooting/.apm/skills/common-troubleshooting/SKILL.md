@@ -19,7 +19,7 @@ Use this skill when:
 
 Before starting any investigation:
 
-1. Run the [`kubernetes-context`](../kubernetes-context/SKILL.md) skill to verify cluster access and resolve the target namespace.
+1. Invoke the `kubernetes-context` skill to verify cluster access and resolve the target namespace.
 2. Ensure the user is available to answer clarifying questions throughout the session.
 
 See the `troubleshooting-triage` prompt/command for quick symptom-to-skill lookup when the problem is already clear.
@@ -71,7 +71,7 @@ Map the confirmed problem to an investigation path and form the first hypothesis
 | DBAAS API errors / missing DBs | dbaas-check | dbaas-api-helper |
 | Unknown / vague symptoms | postgresql-health-check | pgskipper-check, postgresql-log-analyzer |
 
-> **Note**: PostgreSQL skills (`pgskipper-check`, `postgresql-*`, `monitoring-check`) are located in the [pgskipper-operator](https://github.com/Netcracker/pgskipper-operator) repository. DBAAS skills (`dbaas-check`, `dbaas-api-helper`) are located in the [qubership-dbaas](https://github.com/Netcracker/qubership-dbaas) repository.
+> **Note**: Skill names in this table are hints for discovery — resolve them from available skills at runtime, do not hard-code paths or assume specific repository locations.
 
 ### 2.2 Form the first hypothesis
 

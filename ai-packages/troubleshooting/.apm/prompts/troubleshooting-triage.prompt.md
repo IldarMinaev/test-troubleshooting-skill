@@ -10,7 +10,7 @@ Select the closest matching category below and run the listed skills in order â€
 
 If the symptom does not clearly fit any category, treat it as **"Something is wrong but I don't know what"** and begin with the broad health checks listed there. Consider switching to the `common-troubleshooting` skill for a structured hypothesis-driven investigation.
 
-> **Skill locations**: PostgreSQL skills (`pgskipper-check`, `postgresql-*`, `monitoring-check`) are in the [pgskipper-operator](https://github.com/Netcracker/pgskipper-operator) repository. DBAAS skills (`dbaas-check`, `dbaas-api-helper`) are in the [qubership-dbaas](https://github.com/Netcracker/qubership-dbaas) repository.
+> **Note**: Skill names listed below are hints for discovery â€” do NOT hard-code them. Before invoking any skill, discover it dynamically by matching the name against available skills (via frontmatter or system-reminder listings).
 
 ---
 
