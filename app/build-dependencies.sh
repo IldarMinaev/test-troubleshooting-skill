@@ -59,6 +59,13 @@ detect_local_registry() {
     done
 }
 
+# Returns true if the current Kubernetes cluster is OrbStack.
+# OrbStack shares the Docker daemon with K8s, so images are available
+# without a registry — just docker build/tag and set imagePullPolicy=Never.
+is_orbstack() {
+    [[ "$(kubectl get nodes -o jsonpath='{.items[0].status.nodeInfo.osImage}' 2>/dev/null)" == "OrbStack" ]]
+}
+
 usage() {
     cat <<EOF
 Usage: $0 [OPTIONS]
@@ -146,19 +153,31 @@ fi
 
 # ── Detect local registry ─────────────────────────────────────────────────────
 
+SKIP_PUSH=false
 if [ -z "$LOCAL_REGISTRY" ]; then
-    LOCAL_REGISTRY="$(detect_local_registry)"
-    if [ -z "$LOCAL_REGISTRY" ]; then
-        log_error "No local container registry detected (tried localhost:5001, localhost:5000)."
-        log_error "Start a local registry or set LOCAL_REGISTRY=<host:port>."
-        exit 1
+    if is_orbstack; then
+        # OrbStack shares the Docker daemon with K8s — no registry needed.
+        LOCAL_REGISTRY="local"
+        log_info "OrbStack detected — images will be tagged locally (no registry push needed)"
+        SKIP_PUSH=true
+    else
+        LOCAL_REGISTRY="$(detect_local_registry)"
+        if [ -z "$LOCAL_REGISTRY" ]; then
+            log_error "No local container registry detected (tried localhost:5001, localhost:5000)."
+            log_error "Start a local registry or set LOCAL_REGISTRY=<host:port>."
+            exit 1
+        fi
     fi
 fi
 
 log_info "========================================"
 log_info "Building local images"
 log_info "========================================"
-log_info "Registry : $LOCAL_REGISTRY"
+if [[ "$SKIP_PUSH" == "true" ]]; then
+    log_info "Registry : (none — OrbStack direct)"
+else
+    log_info "Registry : $LOCAL_REGISTRY"
+fi
 log_info "Tag      : $LOCAL_TAG"
 [[ "$BUILD_PGSKIPPER" == "true" ]] && log_info "Building : pgskipper-operator"
 [[ "$BUILD_DBAAS"     == "true" ]] && log_info "Building : qubership-dbaas"
@@ -169,7 +188,11 @@ log_info "========================================"
 if [[ "$BUILD_PGSKIPPER" == "true" ]]; then
     log_step "Building pgskipper-operator..."
 
-    OPERATOR_IMAGE="${LOCAL_REGISTRY}/pgskipper-operator:${LOCAL_TAG}"
+    if [[ "$SKIP_PUSH" == "true" ]]; then
+        OPERATOR_IMAGE="pgskipper-operator:${LOCAL_TAG}"
+    else
+        OPERATOR_IMAGE="${LOCAL_REGISTRY}/pgskipper-operator:${LOCAL_TAG}"
+    fi
 
     # The operator Makefile lives in operator/ and uses DOCKER_NAMES / TAG_ENV
     # to control the image name. We override DOCKER_NAMES to target the local registry.
@@ -177,8 +200,10 @@ if [[ "$BUILD_PGSKIPPER" == "true" ]]; then
         cd "$PGSKIPPER_DIR/operator"
         log_info "Running: make DOCKER_NAMES=\"$OPERATOR_IMAGE\" docker-build"
         make DOCKER_NAMES="$OPERATOR_IMAGE" docker-build
-        log_info "Pushing $OPERATOR_IMAGE"
-        docker push "$OPERATOR_IMAGE"
+        if [[ "$SKIP_PUSH" == "false" ]]; then
+            log_info "Pushing $OPERATOR_IMAGE"
+            docker push "$OPERATOR_IMAGE"
+        fi
     )
     log_info "pgskipper-operator image ready: $OPERATOR_IMAGE"
 
@@ -186,13 +211,19 @@ if [[ "$BUILD_PGSKIPPER" == "true" ]]; then
     PATRONI_DOCKERFILE="${PGSKIPPER_DIR}/services/patroni/Dockerfile"
     if [ -f "$PATRONI_DOCKERFILE" ]; then
         PG_VERSION="${PG_VERSION:-17}"
-        PATRONI_IMAGE="${LOCAL_REGISTRY}/pgskipper-docker-patroni-${PG_VERSION}:${LOCAL_TAG}"
+        if [[ "$SKIP_PUSH" == "true" ]]; then
+            PATRONI_IMAGE="pgskipper-docker-patroni-${PG_VERSION}:${LOCAL_TAG}"
+        else
+            PATRONI_IMAGE="${LOCAL_REGISTRY}/pgskipper-docker-patroni-${PG_VERSION}:${LOCAL_TAG}"
+        fi
         log_step "Building patroni image (PG ${PG_VERSION})..."
         docker build \
             -f "$PATRONI_DOCKERFILE" \
             -t "$PATRONI_IMAGE" \
             "$PGSKIPPER_DIR/services/patroni"
-        docker push "$PATRONI_IMAGE"
+        if [[ "$SKIP_PUSH" == "false" ]]; then
+            docker push "$PATRONI_IMAGE"
+        fi
         log_info "Patroni image ready: $PATRONI_IMAGE"
     else
         log_warn "services/patroni/Dockerfile not found — skipping patroni image build."
@@ -205,8 +236,13 @@ fi
 if [[ "$BUILD_DBAAS" == "true" ]]; then
     log_step "Building qubership-dbaas (Maven)..."
 
-    DBAAS_IMAGE="${LOCAL_REGISTRY}/qubership-dbaas:${LOCAL_TAG}"
-    DBAAS_HOOK_IMAGE="${LOCAL_REGISTRY}/qubership-dbaas-validation-image:${LOCAL_TAG}"
+    if [[ "$SKIP_PUSH" == "true" ]]; then
+        DBAAS_IMAGE="qubership-dbaas:${LOCAL_TAG}"
+        DBAAS_HOOK_IMAGE="qubership-dbaas-validation-image:${LOCAL_TAG}"
+    else
+        DBAAS_IMAGE="${LOCAL_REGISTRY}/qubership-dbaas:${LOCAL_TAG}"
+        DBAAS_HOOK_IMAGE="${LOCAL_REGISTRY}/qubership-dbaas-validation-image:${LOCAL_TAG}"
+    fi
 
     # Maven build: compile and package the dbaas-aggregator module
     (
@@ -221,7 +257,9 @@ if [[ "$BUILD_DBAAS" == "true" ]]; then
         -f "${DBAAS_DIR}/dbaas/Dockerfile" \
         -t "$DBAAS_IMAGE" \
         "${DBAAS_DIR}/dbaas"
-    docker push "$DBAAS_IMAGE"
+    if [[ "$SKIP_PUSH" == "false" ]]; then
+        docker push "$DBAAS_IMAGE"
+    fi
     log_info "DBaaS image ready: $DBAAS_IMAGE"
 
     # Build validation / hook image
@@ -231,11 +269,33 @@ if [[ "$BUILD_DBAAS" == "true" ]]; then
             -f "${DBAAS_DIR}/validation-image/Dockerfile" \
             -t "$DBAAS_HOOK_IMAGE" \
             "${DBAAS_DIR}/validation-image"
-        docker push "$DBAAS_HOOK_IMAGE"
+        if [[ "$SKIP_PUSH" == "false" ]]; then
+            docker push "$DBAAS_HOOK_IMAGE"
+        fi
         log_info "DBaaS hook image ready: $DBAAS_HOOK_IMAGE"
     else
         log_warn "validation-image/Dockerfile not found — skipping hook image build."
     fi
+fi
+
+# ── Build inventory-service ────────────────────────────────────────────────────
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INVENTORY_DOCKERFILE="${SCRIPT_DIR}/Dockerfile"
+if [ -f "$INVENTORY_DOCKERFILE" ]; then
+    INVENTORY_IMAGE="inventory-service:latest"
+    log_step "Building inventory-service image..."
+    docker build \
+        -t "$INVENTORY_IMAGE" \
+        "$SCRIPT_DIR"
+    if [[ "$SKIP_PUSH" == "false" && -n "$LOCAL_REGISTRY" ]]; then
+        INVENTORY_REMOTE="${LOCAL_REGISTRY}/inventory-service:latest"
+        docker tag "$INVENTORY_IMAGE" "$INVENTORY_REMOTE"
+        docker push "$INVENTORY_REMOTE"
+    fi
+    log_info "Inventory-service image ready: $INVENTORY_IMAGE"
+else
+    log_warn "Dockerfile not found at $INVENTORY_DOCKERFILE — skipping inventory-service build."
 fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────
