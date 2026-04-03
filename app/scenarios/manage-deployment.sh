@@ -41,13 +41,13 @@ Usage: $0 <command> [options]
 
 Commands:
   list                    List available scenarios
-  deploy <scenario>       Deploy a scenario
+  deploy <scenario...>    Deploy one or more scenarios
   status <scenario>       Check scenario deployment status
   logs <scenario>         Show scenario logs
   api <scenario>          Get management API endpoint for scenario
-  stop <scenario>         Stop and remove a scenario
+  stop <scenario...>      Stop and remove one or more scenarios
   stop-all               Stop all running scenarios
-  run <scenario>          Deploy scenario and wait for it to be ready
+  run <scenario...>       Deploy scenario(s) and wait for them to be ready
 
 Available scenarios:
   report-generation      Single report generation job (high load, 30 min)
@@ -62,8 +62,11 @@ Environment variables:
   DBAAS_PASSWORD        DBAAS password
 
 Examples:
-  # Deploy report generation scenario
+  # Deploy a single scenario
   $0 deploy report-generation
+
+  # Deploy multiple scenarios at once
+  $0 deploy report-generation parallel-import month-end-processing
 
   # Check status
   $0 status report-generation
@@ -74,11 +77,14 @@ Examples:
   # Get management API access
   $0 api report-generation
 
-  # Stop scenario
+  # Stop a single scenario
   $0 stop report-generation
 
+  # Stop multiple scenarios
+  $0 stop report-generation parallel-import
+
   # Full run with AI skill validation
-  $0 run report-generation
+  $0 run report-generation parallel-import
   # Then run: claude-code "Check database performance in namespace $NAMESPACE"
 EOF
 }
@@ -249,12 +255,15 @@ case "${1:-}" in
         list_scenarios
         ;;
     deploy)
-        if [ -z "${2:-}" ]; then
+        shift
+        if [ $# -eq 0 ]; then
             echo "Error: Missing scenario name"
             usage
             exit 1
         fi
-        deploy_scenario "$2"
+        for scenario in "$@"; do
+            deploy_scenario "$scenario"
+        done
         ;;
     status)
         if [ -z "${2:-}" ]; then
@@ -281,23 +290,29 @@ case "${1:-}" in
         api_scenario "$2"
         ;;
     stop)
-        if [ -z "${2:-}" ]; then
+        shift
+        if [ $# -eq 0 ]; then
             echo "Error: Missing scenario name"
             usage
             exit 1
         fi
-        stop_scenario "$2"
+        for scenario in "$@"; do
+            stop_scenario "$scenario"
+        done
         ;;
     stop-all)
         stop_all
         ;;
     run)
-        if [ -z "${2:-}" ]; then
+        shift
+        if [ $# -eq 0 ]; then
             echo "Error: Missing scenario name"
             usage
             exit 1
         fi
-        run_scenario "$2"
+        for scenario in "$@"; do
+            run_scenario "$scenario"
+        done
         ;;
     *)
         usage
