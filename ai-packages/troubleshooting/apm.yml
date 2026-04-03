@@ -6,7 +6,10 @@ license: Apache-2.0
 type: skill
 
 dependencies:
-  apm: []
+  apm:
+  - git: vlsi/troubleshooting-cli
+    path: ai-packages/troubleshooting
+    ref: main
   mcp: []
 scripts: {}
 
