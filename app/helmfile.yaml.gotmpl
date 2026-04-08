@@ -98,7 +98,7 @@ releases:
       - name: replicatorPassword
         value: {{ $replicatorPass }}
       - name: tests.install
-        value: true
+        value: false
       - name: tests.runTestScenarios
         value: basic
       - name: patroni.dockerImage
@@ -117,7 +117,7 @@ releases:
       - {{ $pgNamespace }}/patroni-core
     set:
       - name: tests.install
-        value: true
+        value: false
       - name: PRODUCTION_MODE
         value: false
       - name: NODE_SELECTOR_DBAAS_KEY
@@ -183,7 +183,7 @@ releases:
       - name: backupDaemon.storage.storageClass
         value: {{ $storageClass }}
       - name: tests.install
-        value: true
+        value: false
       - name: tests.runTestScenarios
         value: basic
       - name: dbaas.install
